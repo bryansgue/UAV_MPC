@@ -1,19 +1,19 @@
- function [f,solver,args] = mpc_fullUAV3D(bounded, N, chi, ts, Q, S, val0, val1, val2 )
+ function [f,solver,args] = mpc_fullUAV3D_M100(bounded, N, chi, ts, K1, K2, val0, val1, val2 )
 
 import casadi.*;
 
 %% Definicion de las restricciones en las acciones de control
-f_max = bounded(1); 
-f_min = bounded(2);
+zp_max = bounded(1); 
+zp_min = bounded(2);
 
-ux_max = bounded(3); 
-ux_min = bounded(4);
+phi_max = bounded(3); 
+phi_min = bounded(4);
 
-uy_max = bounded(5); 
-uy_min = bounded(6);
+theta_max = bounded(5); 
+theta_min = bounded(6);
 
-uz_max = bounded(7); 
-uz_min = bounded(8);
+psi_max = bounded(7); 
+psi_min = bounded(8);
 
 %% Generacion de las variables simbolicas de los estados del sistema
 x = SX.sym('x'); 
@@ -37,33 +37,46 @@ q = [x;y;z;phi;theta;psi];
 q_p = [x_p;y_p;z_p;phi_p;theta_p;psi_p];
 
 %% Generacion de las variables simbolicas de las acciones del control del sistema
-F = SX.sym('F');
-ux = SX.sym('ux');
-uy = SX.sym('uy');
-uz = SX.sym('uz');
+zp_ref = SX.sym('F');
+phi_ref = SX.sym('ux');
+theta_ref = SX.sym('uy');
+psi_ref = SX.sym('uz');
 
 %% Defincion de cuantas acciones del control tiene el sistema
-controls = [F;ux;uy;uz]; 
+controls = [zp_ref;phi_ref;theta_ref;psi_ref]; 
 n_control = length(controls);
 
-
 %% PARA R
+g = 9.81;
+m = chi(1);
+
 R = Rot_zyx(q(4:6));
 
-M_bar = M_matrix_bar(chi,q);
-C_bar = C_matrix_bar(chi,q,q_p);
-G_bar = G_matrix_bar(chi,q);
+Mbar = M_matrix_bar(chi,q);
+Cbar = C_matrix_bar(chi,q,q_p);
+Gbar = G_matrix_bar(chi,q);
 
-aux1 = R*[0;0;controls(1)];
-aux2 = [controls(2);controls(3);controls(4)];
+S = S_fuction(chi);
+Q = Q_fuction(chi);
+E = E_fuction(chi);
+T = T_fuction(chi);
+B = [0;0;m*g;0;0;0];
 
-q_pp = inv(M_bar)*([aux1;aux2]-C_bar*q_p-G_bar);
+R_T = [R*T(1:3,1:3) T(1:3,4:6);T(4:6,1:3) T(4:6,4:6)];
 
-h_p = [q_p;
+Aux = (S*[0;0;controls]-Q*q-E*q_p+B);
+Aux1 = R*Aux(1:3,1);
+Aux2 = Aux(4:6,1);
+
+Input_model = [Aux1;Aux2];
+
+q_pp = inv(Mbar+R_T)*(Input_model-Cbar*q_p-Gbar);
+
+s_p = [q_p;
        q_pp];
 
 %% Definicion de kas funciones del sistema
-f = Function('f',{states,controls},{h_p}); 
+f = Function('f',{states,controls},{s_p}); 
 
 X = SX.sym('X',n_states,(N+1));
 U = SX.sym('U',n_control,N);
@@ -86,8 +99,8 @@ for k = 1:N
     n=3;
     hd = P(n_states*k+1:n_states*k+n); 
     he = (X(1:n,k)-hd);
-  
-    fcost = val0*(he'*Q*he) + val1*(con(1)'* S(1,1) *con(1)) + val2*(con(2:4)'*S(2:4,2:4)*con(2:4)) ;
+
+    fcost = val0*(he'*K1*he) + val1*(con(1)'* K2(1,1) *con(1)) + val2*(con(2:4)'*K2(2:4,2:4)*con(2:4)) ;
     obj = obj+ fcost;
     
     %obj = obj+(st-P(7*k+1:7*k+4))'*Q*(st-P(7*k+1:7*k+4)) + con'*R*con;
@@ -163,17 +176,17 @@ args.lbx(12:n_states:n_states*(N+1),1) = -5/6; %state psi_p lower bound
 args.ubx(12:n_states:n_states*(N+1),1) = 5/6;  %state psi_p upper bound
 
 %% Definicion de las restricciones de las acciones de control del sistema
-args.lbx(n_states*(N+1)+1:4:n_states*(N+1)+4*N,1) = f_min;  %
-args.ubx(n_states*(N+1)+1:4:n_states*(N+1)+4*N,1) = f_max;  %
+args.lbx(n_states*(N+1)+1:4:n_states*(N+1)+4*N,1) = zp_min;  %
+args.ubx(n_states*(N+1)+1:4:n_states*(N+1)+4*N,1) = zp_max;  %
 
-args.lbx(n_states*(N+1)+2:4:n_states*(N+1)+4*N,1) = ux_min;  %
-args.ubx(n_states*(N+1)+2:4:n_states*(N+1)+4*N,1) = ux_max;  % 
+args.lbx(n_states*(N+1)+2:4:n_states*(N+1)+4*N,1) = phi_min;  %
+args.ubx(n_states*(N+1)+2:4:n_states*(N+1)+4*N,1) = phi_max;  % 
 
-args.lbx(n_states*(N+1)+3:4:n_states*(N+1)+4*N,1) = uy_min;  %
-args.ubx(n_states*(N+1)+3:4:n_states*(N+1)+4*N,1) = uy_max;  % 
+args.lbx(n_states*(N+1)+3:4:n_states*(N+1)+4*N,1) = theta_min;  %
+args.ubx(n_states*(N+1)+3:4:n_states*(N+1)+4*N,1) = theta_max;  % 
 
-args.lbx(n_states*(N+1)+4:4:n_states*(N+1)+4*N,1) = uz_min;  %
-args.ubx(n_states*(N+1)+4:4:n_states*(N+1)+4*N,1) = uz_max;  % 
+args.lbx(n_states*(N+1)+4:4:n_states*(N+1)+4*N,1) = psi_min;  %
+args.ubx(n_states*(N+1)+4:4:n_states*(N+1)+4*N,1) = psi_max;  % 
 
 
 

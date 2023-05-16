@@ -6,54 +6,54 @@ close all;
 clc;
 
 %Generacion de los tiempos del sistema
-f = 10 % Hz
+f = 10;% Hz
 ts = 1/f;
-tfinal = 30;
+tfinal = 20;
 t = [0:ts:tfinal];
 
 % Definicion del horizonte de prediccion
-N = 10;
+N = 15;
 
 % Definicion de las constantes del sistema
 g = 9.81;
-m = 1.2;
-Ixx = 0.0232;
-Iyy = 0.0232;
-Izz = 0.0468;
-X =[m;Ixx;Iyy;Izz];
 
-Tx_max = 0.5;
-Ty_max = 0.5;
-Tz_max = 0.5;
+load("values_final.mat");
+X = values_final;
 
-Tx_min = -Tx_max;
-Ty_min = -Ty_max;
-Tz_min = -Tz_max;
+zp_ref_max = 3;
+phi_max = 0.7;
+theta_max = 0.7;
+psi_max = 0.7;
+
+zp_ref_min = -zp_ref_max;
+phi_min = -phi_max;
+theta_min = -theta_max;
+psi_min = -psi_max;
 
 
 % Definicion de los limites de las acciondes de control
-bounded = [3*m*g; 0; Tx_max; Tx_min; Ty_max; Ty_min; Tz_max; Tz_min];
+bounded = [zp_ref_max; zp_ref_min; phi_max; phi_min; theta_max; theta_min; psi_max; psi_min];
 
 % Seccion para cargar los parametros dinamicos del sistema
 
-load("chi_values.mat");
+% load("chi_values.mat");
 
-val0 = 1.5; % Errores
-val1 = 0.8; % Fuerza
-val2 = 2; % Torques
+val0 = 3; % Errores
+val1 = 1; % Fuerza
+val2 = 3; % Torques
 
 % Deficion de la matriz de la matriz de control
-Q = eye(3);
-Q(1,1) = 1; % X
-Q(2,2) = 1; % Y
-Q(3,3) = 1; % Z
+K1 = eye(3);
+K1(1,1) = 1; % X
+K1(2,2) = 1; % Y
+K1(3,3) = 1; % Z
 
 % Definicion de la matriz de las acciones de control
-S = eye(4);
-S(1,1) = 1/(3*m*g);
-S(2,2) = 1/Tx_max;
-S(3,3) = 1/Ty_max;
-S(4,4) = 1/Tz_max;
+K2 = eye(4);
+K2(1,1) = 1/zp_ref_max;
+K2(2,2) = 1/phi_max;
+K2(3,3) = 1/theta_max;
+K2(4,4) = 1/psi_max;
 
 %% a) ESTADOS DEL MPC
 
@@ -87,10 +87,7 @@ R_total(:,:,1) = R_NC;
 
 omega = [0; 0; 0];
 
-%% Inertial Value
-I = [Ixx, 0, 0;...
-    0, Iyy, 0;...
-    0 0 Izz];
+
 %% GENERAL VECTOR DEFINITION
 H = [x1;x2];
 
@@ -101,24 +98,24 @@ x_N = repmat(H,1,N+1)';
 
 
 %% Variables definidas por la TRAYECTORIA y VELOCIDADES deseadas
-mul = 10;
+mul = 15;
 [hxd, hyd, hzd, psid, hxdp, hydp, hzdp, psidp] = Trayectorias(3,t,mul);
 %% GENERALIZED DESIRED SIGNALS
 %psid = 0*psid;
 
-% hxd = -5*ones(1,length(t));
+% hxd = -15*ones(1,length(t));
 % hyd = 5*ones(1,length(t));
-% hzd = 5.5*ones(1,length(t));
+% hzd = 10*ones(1,length(t));
 hd = [hxd; hyd; hzd; 0*hxd; 0*hyd; 0*hzd; 0*hxd; 0*hyd; 0*hzd; 0*hxd; 0*hyd; 0*hzd];
 
 %% Definicion del optimizador
-[f, solver, args] = mpc_fullUAV3D(bounded, N, X, ts, Q, S, val0, val1, val2);
+[f, solver, args] = mpc_fullUAV3D_M100(bounded, N, X, ts, K1, K2, val0, val1, val2);
 
 %% Control values torques
-F=1.0*m*g;
-T = [0.001*cos(t);...
-    0.001*sin(t);...
-    0.000*ones(1,length(t))];
+% F=1.0*m*g;
+% T = [0.001*cos(t);...
+%     0.001*sin(t);...
+%     0.000*ones(1,length(t))];
 
 s = [x(1);y(1);z(1);phi(1);theta(1);psi(1);x_p(1);y_p(1);z_p(1);phi_p(1);theta_p(1);psi_p(1)];
 
@@ -126,12 +123,12 @@ tic
 
 for k=1:length(t)-N
     %% Generacion del; vector de error del sistema
-    tic
+    
     he(:,k) = hd(1:3,k) - s(1:3,k);
     
-    %tic
+    tic
     [u_opt,x_opt] = SolverUAV3D_MPC(s(:, k),hd,N,x_N,v_N,args,solver,k);
-    %sample(k)=toc;
+    toc;
     
     uc(:,k)= u_opt(1,:)';
     h_N(:,1:3,k) = x_opt(:,1:3);

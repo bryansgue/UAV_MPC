@@ -1,8 +1,9 @@
-function [opti, H0] = SolverUAV3D_MPC(h,v,hd,N,x_N,v_N,args,solver,k)
+function [opti, H0] = SolverUAV3D_MPC(h_aux,hd,N,x_N,v_N,args,solver,k)
 
-    s = 12;
-    u = 4;
-    args.p(1:s) = [h]; % Generacion del estado del sistema
+    s = size(x_N,2);
+    u = size(v_N,2);
+    
+    args.p(1:s) = h_aux; % Generacion del estado del sistema
     
     for i = 1:N % z
         args.p(s*i+1:s*i+s)=hd(:,k+i);

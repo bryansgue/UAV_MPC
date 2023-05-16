@@ -5,10 +5,27 @@ clear all;
 close all;
 clc;
 
+%% Inicializa Nodo ROS
+rosshutdown
+setenv('ROS_MASTER_URI','http://192.168.88.232:11311')
+setenv('ROS_IP','192.168.88.235')
+rosinit
+
+%% 1) PUBLISHER TOPICS & MSG ROS - UAV M100
+
+[velControl_topic,velControl_msg] = rospublisher('/m100/velocityControl','geometry_msgs/Twist');
+u_ref = [0, 0.0, 0.0, 0];
+send_velocities_euler(velControl_topic, velControl_msg, u_ref);
+%%
+odomSub = rossubscriber('/dji_sdk/odometry');
+[h(:,1),euler(:,1),h_p(:,1),omega(:,1)] = odometryUAV(odomSub);
+
+%%
+
 %Generacion de los tiempos del sistema
-f = 10 % Hz
+f = 10;% Hz
 ts = 1/f;
-tfinal = 30;
+tfinal = 60;
 t = [0:ts:tfinal];
 
 % Definicion del horizonte de prediccion
@@ -16,44 +33,44 @@ N = 10;
 
 % Definicion de las constantes del sistema
 g = 9.81;
-m = 1.2;
-Ixx = 0.0232;
-Iyy = 0.0232;
-Izz = 0.0468;
-X =[m;Ixx;Iyy;Izz];
 
-Tx_max = 0.5;
-Ty_max = 0.5;
-Tz_max = 0.5;
+load("values_final.mat");
+X = values_final;
 
-Tx_min = -Tx_max;
-Ty_min = -Ty_max;
-Tz_min = -Tz_max;
+zp_ref_max = 3;
+phi_max = 0.2;
+theta_max = 0.2;
+psi_max = 0.2;
+
+zp_ref_min = -zp_ref_max;
+phi_min = -phi_max;
+theta_min = -theta_max;
+psi_min = -psi_max;
 
 
 % Definicion de los limites de las acciondes de control
-bounded = [3*m*g; 0; Tx_max; Tx_min; Ty_max; Ty_min; Tz_max; Tz_min];
+bounded = [zp_ref_max; zp_ref_min; phi_max; phi_min; theta_max; theta_min; psi_max; psi_min];
 
 % Seccion para cargar los parametros dinamicos del sistema
 
-load("chi_values.mat");
+% load("chi_values.mat");
 
-val0 = 1.5; % Errores
-val1 = 0.8; % Fuerza
-val2 = 2; % Torques
+val0 = 0.6; % Errores
+val1 = 1; % Fuerza
+val2 = 1; % Torques
 
 % Deficion de la matriz de la matriz de control
-Q = eye(3);
-Q(1,1) = 1; % X
-Q(2,2) = 1; % Y
-Q(3,3) = 1; % Z
+K1 = eye(3);
+K1(1,1) = 1; % X
+K1(2,2) = 1; % Y
+K1(3,3) = 3; % Z
 
 % Definicion de la matriz de las acciones de control
-S = eye(4);
-S(1,1) = 1/(3*m*g);
-S(2,2) = 1/Tx_max;
-S(3,3) = 1/Ty_max;
-S(4,4) = 1/Tz_max;
+K2 = eye(4);
+K2(1,1) = 1/zp_ref_max;
+K2(2,2) = 1/phi_max;
+K2(3,3) = 1/theta_max;
+K2(4,4) = 1/psi_max;
 
 %% a) ESTADOS DEL MPC
 
@@ -71,12 +88,12 @@ phi_p(1)  =  0;
 theta_p(1)=  0;
 psi_p(1)  =  0;
 
-x1(:,1) = [x(1);y(1);z(1);phi(1);theta(1);psi(1)];
+q(:,1) = [x(1);y(1);z(1);phi(1);theta(1);psi(1)];
 
-x2(:,1) = [x_p(1);y_p(1);z_p(1);phi_p(1);theta_p(1);psi_p(1)];
+q_p(:,1) = [x_p(1);y_p(1);z_p(1);phi_p(1);theta_p(1);psi_p(1)];
 
 %% ESTADOS DE POSICION PARA SISTEMA
-h = [x(1);y(1);z(1);x_p(1);y_p(1);z_p(1)];
+
 
 angles_b = [phi(1);theta(1);psi(1)];
 
@@ -87,12 +104,9 @@ R_total(:,:,1) = R_NC;
 
 omega = [0; 0; 0];
 
-%% Inertial Value
-I = [Ixx, 0, 0;...
-    0, Iyy, 0;...
-    0 0 Izz];
+
 %% GENERAL VECTOR DEFINITION
-H = [x1;x2];
+H = [q(:,1);q_p(:,1)];
 
 % Definicion del vectro de control inicial del sistema
 v_N = zeros(N,4);
@@ -101,24 +115,24 @@ x_N = repmat(H,1,N+1)';
 
 
 %% Variables definidas por la TRAYECTORIA y VELOCIDADES deseadas
-mul = 10;
+mul = 5;
 [hxd, hyd, hzd, psid, hxdp, hydp, hzdp, psidp] = Trayectorias(3,t,mul);
 %% GENERALIZED DESIRED SIGNALS
 %psid = 0*psid;
 
-% hxd = -5*ones(1,length(t));
+% hxd = -15*ones(1,length(t));
 % hyd = 5*ones(1,length(t));
-% hzd = 5.5*ones(1,length(t));
+% hzd = 10*ones(1,length(t));
 hd = [hxd; hyd; hzd; 0*hxd; 0*hyd; 0*hzd; 0*hxd; 0*hyd; 0*hzd; 0*hxd; 0*hyd; 0*hzd];
 
 %% Definicion del optimizador
-[f, solver, args] = mpc_fullUAV3D(bounded, N, X, ts, Q, S, val0, val1, val2);
+[f, solver, args] = mpc_fullUAV3D_M100(bounded, N, X, ts, K1, K2, val0, val1, val2);
 
 %% Control values torques
-F=1.0*m*g;
-T = [0.001*cos(t);...
-    0.001*sin(t);...
-    0.000*ones(1,length(t))];
+% F=1.0*m*g;
+% T = [0.001*cos(t);...
+%     0.001*sin(t);...
+%     0.000*ones(1,length(t))];
 
 s = [x(1);y(1);z(1);phi(1);theta(1);psi(1);x_p(1);y_p(1);z_p(1);phi_p(1);theta_p(1);psi_p(1)];
 
@@ -126,20 +140,29 @@ tic
 
 for k=1:length(t)-N
     %% Generacion del; vector de error del sistema
-    tic
+    
     he(:,k) = hd(1:3,k) - s(1:3,k);
     
-    %tic
+    tic
     [u_opt,x_opt] = SolverUAV3D_MPC(s(:, k),hd,N,x_N,v_N,args,solver,k);
-    %sample(k)=toc;
+    toc;
     
     uc(:,k)= u_opt(1,:)';
     h_N(:,1:3,k) = x_opt(:,1:3);
     
+    
+    %% Envia Valores
+    send_velocities_euler(velControl_topic, velControl_msg, uc(:,k));
+    
     %% System evolution
     
-    s(:,k+1) = UAV_dynamic_Casadi(f,ts, s(:,k),uc(:,k));
-    
+    [h(:,k+1),euler(:,k+1),h_p(:,k+1),omega(:,k+1)] = odometryUAV(odomSub);
+       
+    euler_p(:,k+1) = Euler_p(omega(:,k+1),euler(:,k+1));
+          
+    %s(:,k+1) = UAV_dynamic_Casadi(f,ts, s(:,k),uc(:,k));
+    s(:,k+1) = [h(:,k+1);euler(:,k+1);h_p(:,k+1);euler_p(:,k+1)];
+ %%   
     %    Actualizacion de los resultados del optimizador para tener una soluciona aproximada a la optima
     v_N = [u_opt(2:end,:);u_opt(end,:)];
     x_N = [x_opt(2:end,:);x_opt(end,:)];
@@ -149,6 +172,9 @@ for k=1:length(t)-N
     
     dt(k) = toc;
 end
+
+u_ref = [0, 0, 0, 0];
+send_velocities(velControl_topic, velControl_msg, u_ref);
 disp("fin");
 toc
 %%
@@ -214,7 +240,7 @@ ylabel('$[m]$','Interpreter','latex','FontSize',9);
 figure(3)
 
 subplot(3,1,1)
-plot(hxd)
+plot(hxd(1,1:length(s(1,:))))
 hold on
 plot(s(1,:))
 legend("yd","hy")
@@ -222,7 +248,7 @@ ylabel('y [m]'); xlabel('s [ms]');
 
 
 subplot(3,1,2)
-plot(hyd)
+plot(hyd(1,1:length(s(2,:))))
 hold on
 plot(s(2,:))
 legend("yd","hy")
@@ -230,7 +256,7 @@ ylabel('y [m]'); xlabel('s [ms]');
 
 
 subplot(3,1,3)
-plot(hzd)
+plot(hzd(1,1:length(s(3,:))))
 hold on
 plot(s(3,:))
 grid on

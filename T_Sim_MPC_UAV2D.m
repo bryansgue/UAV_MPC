@@ -21,18 +21,23 @@ Ixx = 0.02;
 L =[g;m;Ixx];
 
 % Definicion de los limites de las acciondes de control
-val = 80;
-bounded = [2*m*g; 0; val*0.1; -val*0.1];
+val = 20;
+T_max = 50*m*g;
+T_min = -T_max;
+bounded = [T_max; T_min; val; -val];
 
 % Seccion para cargar los parametros dinamicos del sistema
 
 load("chi_values.mat");
 
 % Deficion de la matriz de la matriz de control
-Q = 10*eye(3);
+Q = eye(3);
+Q(1,1) = 1;
+Q(2,2) = 1;
+Q(3,3) = 100;
 
 % Definicion de la matriz de las acciones de control
-R = 0.000001*eye(2);
+R = 0*0.0000001*eye(2);
 
 % Definicion de los estados iniciales del sistema
 x = 0;
@@ -60,11 +65,11 @@ H0 = repmat(h,1,N+1)';
 x_N = H0;
 
 %% Variables definidas por la TRAYECTORIA y VELOCIDADES deseadas
-mul = 10;
+mul = 5;
 [hxd, hyd, hzd, psid, hxdp, hydp, hzdp, psidp] = Trayectorias(3,t,mul);
 %% GENERALIZED DESIRED SIGNALS
-psid = -1.5*ones(1,length(t));
-Q(3,3) = 0;
+psid = (-45*(pi/180))*ones(1,length(t));
+%Q(3,3) = 0;
 hd = [hyd; hzd; psid;hydp;hzdp;psidp];
 
 %% Velocidad inicial real del UAV
@@ -82,7 +87,7 @@ tic
 for k=1:length(t)-N   
 %% Generacion del; vector de error del sistema
 
-    he(:,k)=hd(1:2,k)-h(1:2,k);
+    he(:,k)=hd(1:3,k)-h(1:3,k);
     
     tic
     [u_opt,x_opt] = SolverUAV2D_MPC(x1(:,k),x2(:,k),hd,N,x_N,v_N,args,solver,k);
