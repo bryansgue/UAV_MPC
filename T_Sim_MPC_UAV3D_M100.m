@@ -8,11 +8,11 @@ clc;
 %Generacion de los tiempos del sistema
 f = 10;% Hz
 ts = 1/f;
-tfinal = 20;
+tfinal = 15;
 t = [0:ts:tfinal];
 
 % Definicion del horizonte de prediccion
-N = 15;
+N = 20;
 
 % Definicion de las constantes del sistema
 g = 9.81;
@@ -60,7 +60,7 @@ K2(4,4) = 1/psi_max;
 x(1)    =  0;
 y(1)    =  0;
 z(1)    =  0;
-phi(1)  =  0*pi/180;
+phi(1)  =  0;
 theta(1)=  0;
 psi(1)  =  0;
 
@@ -101,31 +101,33 @@ x_N = repmat(H,1,N+1)';
 mul = 15;
 [hxd, hyd, hzd, psid, hxdp, hydp, hzdp, psidp] = Trayectorias(3,t,mul);
 %% GENERALIZED DESIRED SIGNALS
-%psid = 0*psid;
+%psid = -15*ones(1,length(t));;
 
-% hxd = -15*ones(1,length(t));
-% hyd = 5*ones(1,length(t));
-% hzd = 10*ones(1,length(t));
+% hxd = 10*ones(1,length(t));
+% hyd = 20*ones(1,length(t));
+% hzd = 5*ones(1,length(t));
 hd = [hxd; hyd; hzd; 0*hxd; 0*hyd; 0*hzd; 0*hxd; 0*hyd; 0*hzd; 0*hxd; 0*hyd; 0*hzd];
 
 %% Definicion del optimizador
 [f, solver, args] = mpc_fullUAV3D_M100(bounded, N, X, ts, K1, K2, val0, val1, val2);
 
 %% Control values torques
-% F=1.0*m*g;
-% T = [0.001*cos(t);...
-%     0.001*sin(t);...
-%     0.000*ones(1,length(t))];
 
 s = [x(1);y(1);z(1);phi(1);theta(1);psi(1);x_p(1);y_p(1);z_p(1);phi_p(1);theta_p(1);psi_p(1)];
 
 tic
 
+% uc = [0*ones(1,length(t));
+%     0.05*sin(t);
+%     0.05*cos(t);
+%     0.01*sin(t)];
+
+
 for k=1:length(t)-N
     %% Generacion del; vector de error del sistema
     
     he(:,k) = hd(1:3,k) - s(1:3,k);
-    
+    %%
     tic
     [u_opt,x_opt] = SolverUAV3D_MPC(s(:, k),hd,N,x_N,v_N,args,solver,k);
     toc;
@@ -143,7 +145,7 @@ for k=1:length(t)-N
     
     while(toc<ts)
     end
-    
+    k
     dt(k) = toc;
 end
 disp("fin");
@@ -163,7 +165,7 @@ x1.Style = 'infinite';
 Drone_Parameters(0.02);
 %c) Dibujo del Robot
 %G2=Drone_Plot_3D(0,h(1),h(2),0,0,h(2));hold on
-
+G2 = plot3(s(1,1),s(2,1),s(3,1),'Color',[32,185,29]/255,'linewidth',1.5);
 G21=Drone_Plotv2_3D(s(1,1),s(2,1),s(3,1),s(4,1),s(5,1),s(6,1));hold on
 
 G3 = plot3(0,h(1),h(1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on
@@ -175,13 +177,13 @@ view(-45,15);
 paso = 1;
 for k = 1:paso:length(t)-N
     drawnow
-    % delete(G2);
+    delete(G2);
     delete(G3);
     delete(G21);
     delete(G5);
-    %   G2=Drone_Plot_3D(h(1,k),h(2,k),h(3,k),angles_b(1, k), angles_b(2, k), angles_b(3, k));hold on
-    G21=Drone_Plotv2_3D(s(1,k),s(2,k),s(3,k),s(4,k),s(5,k),s(6,k));hold on
     
+    G21=Drone_Plotv2_3D(s(1,k),s(2,k),s(3,k),s(4,k),s(5,k),s(6,k));hold on
+    G2 = plot3(s(1,1:k),s(2,1:k),s(3,1:k),'--','Color',[155,126,125]/255,'linewidth',0.5);
     G3 = plot3(hxd(1:k),hyd(1:k),hzd(1:k),'Color',[32,185,29]/255,'linewidth',1.5);
     
     G5 = plot3(h_N(1:N,1,k),h_N(1:N,2,k),h_N(1:N,3,k),'Color',[100,100,100]/255,'linewidth',0.1);
@@ -214,8 +216,8 @@ subplot(3,1,1)
 plot(hxd)
 hold on
 plot(s(1,:))
-legend("yd","hy")
-ylabel('y [m]'); xlabel('s [ms]');
+legend("xd","hx")
+ylabel('x [m]'); 
 
 
 subplot(3,1,2)
@@ -223,8 +225,7 @@ plot(hyd)
 hold on
 plot(s(2,:))
 legend("yd","hy")
-ylabel('y [m]'); xlabel('s [ms]');
-
+ylabel('y [m]'); 
 
 subplot(3,1,3)
 plot(hzd)
@@ -288,4 +289,14 @@ plot(s(6,:))
 grid on
 legend("psi")
 ylabel('z [m]'); xlabel('s [ms]');
+
+
+figure(9)
+
+
+plot(s(1,:)); hold on
+plot(s(2,:)); hold on
+plot(s(3,:)); hold on
+
+
 

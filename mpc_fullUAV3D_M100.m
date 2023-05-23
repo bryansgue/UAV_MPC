@@ -70,7 +70,10 @@ Aux2 = Aux(4:6,1);
 
 Input_model = [Aux1;Aux2];
 
+%inv_uax = inv_M_RT(chi,q);
+
 q_pp = inv(Mbar+R_T)*(Input_model-Cbar*q_p-Gbar);
+%q_pp = inv_uax*(Input_model-Cbar*q_p-Gbar);
 
 s_p = [q_p;
        q_pp];
