@@ -5,13 +5,6 @@ clc, clear all, close all;
 load("chi_values.mat");
 chi_real = chi';
 
-%% DEFINITION OF TIME VARIABLES
-f = 30; % Hz 
-ts = 1/f;
-to = 0;
-tf = 45;
-t = (to:ts:tf);
-
 %% Inicializa Nodo ROS
 rosshutdown
 setenv('ROS_MASTER_URI','http://192.168.88.223:11311')
@@ -33,8 +26,23 @@ euler_p(:,1) = Euler_p(omega(:,1),euler(:,1));
 h(:,1) = [x(:,1);euler(3,1)];
 h_p(:,1) = [x_p(:,1);euler_p(3,1)]; 
 
+psi(1) = h(3,1) 
+J = [cos(psi(1)) -sin(psi(1)) 0 0;
+    sin(psi(1)) cos(psi(1)) 0 0;
+    0 0 1 0;
+    0 0 0 1];
+
+v(:,1) = pinv(J)*h_p(:,1);
+
+%% DEFINITION OF TIME VARIABLES
+f = 30 % Hz 
+ts = 1/f;
+to = 0;
+tf = 30;
+t = (to:ts:tf);
+
 %% Definicion del horizonte de prediccion
-N = 10; 
+N = f/2; %20 
 
 %% CONSTANTS VALUES OF THE ROBOT
 a = 0.0; 
@@ -44,121 +52,91 @@ L = [a, b, c];
 
 
 
+%% INITIAL GENERALIZE VELOCITIES
+v = [0; 0;0;0];
+
 %% GENERAL VECTOR DEFINITION
-H = [h;h_p];
+H = [h;v];
 
 %% Variables definidas por la TRAYECTORIA y VELOCIDADES deseadas
-mul = 5;
-[hxd, hyd, hzd, hpsid, hxdp, hydp, hzdp, hpsidp] = Trayectorias(3,t,mul);
+[hxd, hyd, hzd, hpsid, hxdp, hydp, hzdp, hpsidp] = Trayectorias(3,t,5);
 
 %% GENERALIZED DESIRED SIGNALS
 %hd = [hxd; hyd; hzd; hpsid];
 hd = [hxd;hyd;hzd;0*hpsid;hxdp; hydp; hzdp; 0*hpsidp];
 
-hd_p = [hxdp;hydp;hzdp;hpsidp];
+%hdp = [hxdp;hydp;hzdp;hpsidp];
 
 %% Deficion de la matriz de la matriz de control
-%Q = 0.05*eye(4);
-
-%% Definicion de la matriz de las acciones de control
-%R = 0.005*eye(4);
-
-Q = 0.01*[1 0 0 0; 0 2 0 0 ; 0 0 1 0 ; 0 0 0 0.5];
+Q = 0.01*[1 0 0 0; 0 1 0 0 ; 0 0 1 0 ; 0 0 0 1];
 % Definicion de la matriz de las acciones de control
 R = 0.001*eye(4);
-
-Ke = 0.01;  % N = 15 ; Ke = 0.01 Ka = 4 ; f = 30
-Kb = 0.8*eye(4);
-Ka = 0.8*eye(4);
-%Ka(2,2) = 0.0001*0.1; 
 
 %% Definicion de los limites de las acciondes de control
 bounded = [2.5; -2.5; 2.5; -2.5; 2.5; -2.5; 1.5; -1.5];
 
 %% Definicion del vectro de control inicial del sistema
-vcc = zeros(N,4);
+
+v_N = zeros(N,4);
 H0 = repmat(H,1,N+1)'; 
+x_N = H0;
 
 % Definicion del optimizador
 [f, solver, args] = mpc_drone(chi_real,bounded, N, L, ts, Q, R);
 
 % Chi estimado iniciales
 chi_estimados(:,1) = chi';
-%chi_estimados(:,1) =[0.6502;0;0.8556;0;0.3880;0;0;0.1767;0.6019;0;0.0982;0;1.0217;0;0;0;0;1.0987]
-
 tic
 for k=1:length(t)-N
-tic
 
     %% Generacion del; vector de error del sistema
     he(:,k)=hd(1:4,k)-h(:,k);
     
-    args.p(1:8) = [h(:,k);h_p(:,k)]; % Generacion del estado del sistema
+    tic
+    [u_opt,x_opt] = SolverUAV_MPC_din(h,v,hd,N,x_N,v_N,args,solver,k);
+    sample(k)=toc;
     
-    for i = 1:N % z
-        args.p(8*i+1:8*i+8)=[hd(:,k+i)];
-%         args.p(4*i+5:4*i+7)=obs;
-    end 
-    
-    args.x0 = [reshape(H0',8*(N+1),1);reshape(vcc',size(vcc,2)*N,1)]; % initial value of the optimization variables
-    %tic;
-    sol = solver('x0', args.x0, 'lbx', args.lbx, 'ubx', args.ubx,...
-            'lbg', args.lbg, 'ubg', args.ubg,'p',args.p);
-    %toc
-    %sample(k)=toc;
-    opti = reshape(full(sol.x(8*(N+1)+1:end))',4,N)';
-    H0 = reshape(full(sol.x(1:8*(N+1)))',8,N+1)';
-    hfut(:,1:4,k+1) = H0(:,1:4);
-    vc(:,k)= opti(1,:)';
-    
-    vcp(:,k) = [0;0;0;0];
-    %% DYNAMIC ESTIMATION
-    %[Test(:,k),chi_estimados(:,k+1)] = estimadaptive_dymanic_UAV_real(chi_estimados(:,k),vcp(:,k), vc(:,k), h_p(:,k), hd(1:4,k), h(:,k) ,Ka,Kb, L, ts, Ke);
+    vc(:,k)= u_opt(1,:)';
+    h_N(:,1:4,k) = x_opt(:,1:4);
 
-    
-    %% Dinamica del sistema 
+        %% Dinamica del sistema 
 
     send_velocities(velControl_topic, velControl_msg, vc(:,k));
-
+    
 %% 3) Odometria del UAV
     
     [x(:,k+1),euler(:,k+1),x_p(:,k+1),omega(:,k+1)] = odometryUAV(odomSub);
     
     euler_p(:,k+1) = Euler_p(omega(:,k+1),euler(:,k+1));
       
-    R = Rot_zyx(euler(:,k+1));
-
-    v(:,k+1) = inv(R)*x_p(:,k+1);
-    
+    R = Rot_zyx(euler(:,k+1)); 
     
     h(:,k+1) = [x(:,k+1);euler(3,k+1)];
     h_p(:,k+1) = [x_p(:,k+1);euler_p(3,k+1)]; 
 
-    
-    J = [cos(psi(k)) -sin(psi(k)) 0 0;
-    sin(psi(k)) cos(psi(k)) 0 0;
+    psi(k+1) = h(4,k+1) ;
+    J = [cos(psi(k+1)) -sin(psi(k+1)) 0 0;
+    sin(psi(k+1)) cos(psi(k+1)) 0 0;
     0 0 1 0;
     0 0 0 1];
 
-    %v(:,k+1) = pinv(J)*h_p(:,k);
-
+    v(:,k+1) = pinv(J)*h_p(:,k);
+    
         
     %% Actualizacion de los resultados del optimizador para tener una soluciona aproximada a la optima
     
-    vcc = [opti(2:end,:);opti(end,:)];
-    H0 = [H0(2:end,:);H0(end,:)];
+    v_N = [u_opt(2:end,:);u_opt(end,:)];
+    x_N = [x_opt(2:end,:);x_opt(end,:)];
     
     while toc<ts
     end
     dt(k) = toc;
 end
 toc
+
 %% 1) PUBLISHER TOPICS & MSG ROS
 u_ref = [0.0, -0.0, 0.0, 0.0];
 send_velocities(velControl_topic, velControl_msg, u_ref);
-
-save("T_MPC_Din-Est_UAV_Real.mat","hd","hd_p","h","h_p","v","vc","dt","t","ts","N");
-
 %%
 close all; paso=100; 
 %a) Parámetros del cuadro de animación
@@ -193,7 +171,7 @@ for k = 1:10:length(t)-N
     G2=Drone_Plot_3D(h(1,k),h(2,k),h(3,k),0,0,psi(k));hold on  
     G3 = plot3(hd(1,1:k),hd(2,1:k),hd(3,1:k),'Color',[32,185,29]/255,'linewidth',1.5);
     G4 = plot3(h(1,k),h(2,k),h(3,k),'-.','Color',[56,171,217]/255,'linewidth',1.5);
-    G5 = plot3(hfut(1:N,1,k),hfut(1:N,2,k),hfut(1:N,3,k),'Color',[100,100,100]/255,'linewidth',0.1);
+    G5 = plot3(h_N(1:N,1,k),h_N(1:N,2,k),h_N(1:N,3,k),'Color',[100,100,100]/255,'linewidth',0.1);
 
     pause(0)
 end
