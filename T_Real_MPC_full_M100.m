@@ -7,14 +7,14 @@ clc;
 
 %% Inicializa Nodo ROS
 rosshutdown
-setenv('ROS_MASTER_URI','http://192.168.88.232:11311')
-setenv('ROS_IP','192.168.88.228')
+setenv('ROS_MASTER_URI','http://192.168.88.223:11311')
+setenv('ROS_IP','192.168.88.104')
 rosinit
 
 %% 1) PUBLISHER TOPICS & MSG ROS - UAV M100
 
 [velControl_topic,velControl_msg] = rospublisher('/m100/velocityControl','geometry_msgs/Twist');
-u_ref = [0.0, 0.0, 0.0, 0];
+u_ref = [-0.0, -0.000, 0.000, 0.8];
 send_velocities_euler(velControl_topic, velControl_msg, u_ref);
 %%
 odomSub = rossubscriber('/dji_sdk/odometry');
@@ -40,7 +40,7 @@ X = values_final;
 zp_ref_max = 3;
 phi_max = 0.2;
 theta_max = 0.2;
-psi_max = 0.2;
+psi_max = 0.9;
 
 zp_ref_min = -zp_ref_max;
 phi_min = -phi_max;
