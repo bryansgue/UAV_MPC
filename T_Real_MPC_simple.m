@@ -68,7 +68,7 @@ hd = [hxd;hyd;hzd;0*hpsid;hxdp; hydp; hzdp; 0*hpsidp];
 %hdp = [hxdp;hydp;hzdp;hpsidp];
 
 %% Deficion de la matriz de la matriz de control
-Q = 0.01*[1 0 0 0; 0 1 0 0 ; 0 0 1 0 ; 0 0 0 1];
+Q = 0.015*[1 0 0 0; 0 1 0 0 ; 0 0 1 0 ; 0 0 0 1];
 % Definicion de la matriz de las acciones de control
 R = 0.001*eye(4);
 

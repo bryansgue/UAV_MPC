@@ -58,8 +58,18 @@ v_N = zeros(N,4);
 H0 = repmat(H,1,N+1)'; 
 x_N = H0;
 
+A = [-1.1325,   -0.0402,   -0.0667,    0.3290;
+   -0.0150,   -0.6915,   -0.0932,   -0.4733;
+    0.0074,   -0.5685,   -3.8110,    0.0694;
+   -0.1397,   -0.2863,   -0.0601,   -1.7905];
+
+B =[1.3241,    0.1193,    0.1286,   -0.1435;
+   -0.0368,    1.2678,   -0.0485,    0.1093;
+   -0.1827,    0.4481,    3.6462,    0.3387;
+    0.1529,    0.6367,   -0.0093,    1.5580];
+
 % Definicion del optimizador
-[f, solver, args] = mpc_drone(chi_real,bounded, N, L, ts, Q, R);
+[f, solver, args] = mpc_drone_DMD(A,B,bounded, N, L, ts, Q, R);
 
 % Chi estimado iniciales
 chi_estimados(:,1) = chi';
