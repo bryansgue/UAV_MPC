@@ -1,4 +1,4 @@
- function [f,solver,args] = mpc_drone(chi_uav,bounded, N, L, ts, Q, R, obs)
+ function [f,solver,args] = S_mpc_drone(chi_uav,bounded, N, L, ts, Q, R, obs)
 
 import casadi.*;
 %% Definicion de las restricciones en las acciones de control
@@ -134,8 +134,8 @@ for k = 1:N
     st = X(:,k);  con = U(:,k);
 
     %% Funcion costo a minimizar z
-    hd = P(n_states*k+1:n_states*k+4);       
-    he = X(1:4,k)-hd;
+    hd = P(n_states*k+5:n_states*k+8);       
+    he = X(5:8,k)-hd;
     fcost = he'*Q*he + con'*R*con;
     obj = obj+ fcost;
     

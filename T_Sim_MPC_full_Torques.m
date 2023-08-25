@@ -126,12 +126,12 @@ tic
 
 for k=1:length(t)-N
     %% Generacion del; vector de error del sistema
-    tic
+   
     he(:,k) = hd(1:3,k) - s(1:3,k);
     
-    %tic
+    tic
     [u_opt,x_opt] = SolverUAV3D_MPC(s(:, k),hd,N,x_N,v_N,args,solver,k);
-    %sample(k)=toc;
+    toc
     
     uc(:,k)= u_opt(1,:)';
     h_N(:,1:3,k) = x_opt(:,1:3);
@@ -146,6 +146,7 @@ for k=1:length(t)-N
     
     while(toc<ts)
     end
+    
     
     dt(k) = toc;
 end

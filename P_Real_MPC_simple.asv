@@ -63,7 +63,7 @@ H = [h;v];
 
 %% GENERALIZED DESIRED SIGNALS
 %hd = [hxd; hyd; hzd; hpsid];
-hd = [hxd;hyd;hzd;0*hpsid;hxdp; hydp; hzdp; 0*hpsidp];
+hd = [0*hxd+2;0*hyd+0.4;0*hzd+4;0*hpsid+0.6;hxdp; hydp; hzdp; 0*hpsidp];
 
 %hdp = [hxdp;hydp;hzdp;hpsidp];
 

@@ -22,14 +22,13 @@ c = 0.0;
 L = [a, b, c];
 
 % Definicion de los estados iniciales del sistema
-x(1) = 0;
-y(1) = 0;
-z(1) = 0;
-psi(1) = 0;
-h = [x;y;z;psi]
+
+h = [0;0;1;0];
 
 %% INITIAL GENERALIZE VELOCITIES
-v = [0; 0;0;0];
+v = [0; 0; 0; 0];
+
+x = [h;v];
 
 %% GENERAL VECTOR DEFINITION
 H = [h;v];
@@ -45,9 +44,19 @@ hd = [hxd;hyd;hzd;0*hpsid;hxdp; hydp; hzdp; 0*hpsidp];
 
 %% Deficion de la matriz de la matriz de control
 Q = 1*eye(4);
+Q(1,1) = 1;
+Q(2,2) = 1 ;
+Q(3,3) = 1;
+Q(4,4) = 1;
+
+
 
 %% Definicion de la matriz de las acciones de control
-R = 0.001*eye(4);
+R = 0.005*eye(4);
+% R(1,1) = 1;
+% R(2,2) = 1;
+% R(3,3) = 1;
+% R(4,4) = 1;
 
 %% Definicion de los limites de las acciondes de control
 bounded = 3*[1.2; -1.2; 1.2; -1.2; 1.2; -1.2; 5.5; -5.5];
@@ -58,21 +67,20 @@ v_N = zeros(N,4);
 H0 = repmat(H,1,N+1)'; 
 x_N = H0;
 
-A = [-1.1325,   -0.0402,   -0.0667,    0.3290;
-   -0.0150,   -0.6915,   -0.0932,   -0.4733;
-    0.0074,   -0.5685,   -3.8110,    0.0694;
-   -0.1397,   -0.2863,   -0.0601,   -1.7905];
+A = [   -1.5105    0.4017    1.7112   -0.1643;
+    0.9038   -0.7523   -1.4176   -0.2979;
+    -0.7307    0.3331   -0.7422   -0.2671;
+    -0.0582    0.1306    0.2789   -2.4667];
 
-B =[1.3241,    0.1193,    0.1286,   -0.1435;
-   -0.0368,    1.2678,   -0.0485,    0.1093;
-   -0.1827,    0.4481,    3.6462,    0.3387;
-    0.1529,    0.6367,   -0.0093,    1.5580];
+B =[    1.9717   -0.5415   -1.5929   -0.0495;
+    -0.2361    1.3144    0.8441    0.3255;
+    0.7182   -0.2532    0.9526    0.1146;
+    -0.5441   -0.4366    0.1335    2.6097];
 
 % Definicion del optimizador
 [f, solver, args] = mpc_drone_DMD(A,B,bounded, N, L, ts, Q, R);
 
-% Chi estimado iniciales
-chi_estimados(:,1) = chi';
+
 tic
 for k=1:length(t)-N
 
@@ -86,34 +94,12 @@ for k=1:length(t)-N
     vref(:,k)= u_opt(1,:)';
     h_N(:,1:4,k) = x_opt(:,1:4);
 
-    %% 2) ACELERATIONS VCP 
-    if k>1
-    ulp(k)=(vref(1,k)- vref(1,k-1))/ts;
-    ump(k)=(vref(2,k)- vref(2,k-1))/ts;
-    unp(k)=(vref(3,k)- vref(3,k-1))/ts;
-    wp(k) =(vref(4,k)- vref(4,k-1))/ts;
-    else
-    ulp(k)=0;   
-    ump(k)=0; 
-    unp(k)=0; 
-    wp(k) =0; 
-    end
-    %vcp(:,k) = [ulp(k);ump(k);unp(k);wp(k)];
-    vcp(:,k) = [0;0;0;0];
-    %% DYNAMIC ESTIMATION
-    
     %% Dinamica del sistema 
-    [v(:, k+1),Tu(:,k)] = model_Dyn_UAV(chi_real, v(:,k), vref(:,k), psi(k), L,ts,k);
     
-    %% Simulacion del sistema
-%     h=h+system(h,[ul(k+1);um(k+1);un(k+1);w(k+1)],f,ts);
+    x(:,k+1) = UAV_DMD_RK4(A,B,x(:,k),vref(:,k),L,ts);
     
-    h(:,k+1) = h(:,k)+ UAV_RK4(h(:,k),v(:,k+1),ts);
-    hx(k+1) = h(1,k+1);
-    hy(k+1) = h(2,k+1);
-    hz(k+1) = h(3,k+1);      
-    psi(k+1) = Angulo(h(4,k+1));
-    
+    h(:,k+1) = x(1:4,k+1);
+    v(:,k+1) = x(5:8,k+1); 
         
     %% Actualizacion de los resultados del optimizador para tener una soluciona aproximada a la optima
     
@@ -135,11 +121,11 @@ set(gcf, 'PaperPositionMode', 'manual');
 %b) Dimenciones del Robot
     Drone_Parameters(0.02);
 %c) Dibujo del Robot    
-    G2=Drone_Plot_3D(hx(1),hy(1),hz(1),0,0,psi(1));hold on
+    G2=Drone_Plot_3D(x(1,1),x(2,1),x(3,1),0,0,x(4,1));hold on
 
-    G3 = plot3(hx(1),hy(1),hz(1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on   
+    G3 = plot3(x(1,1),x(2,1),x(3,1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on   
     G4 = plot3(hxd(1),hyd(1),hzd(1),'Color',[32,185,29]/255,'linewidth',1.5);
-    G5 = Drone_Plot_3D(hx(1),hy(1),hz(1),0,0,psi(1));hold on
+    G5 = Drone_Plot_3D(x(1,1),x(2,1),x(3,1),0,0,x(4,1));hold on
 %    plot3(hxd(ubicacion),hyd(ubicacion),hzd(ubicacion),'*r','linewidth',1.5);
     view(20,15);
     
@@ -152,9 +138,9 @@ for k = 1:10:length(t)-N
     delete(G4);
     delete(G5);
    
-    G2=Drone_Plot_3D(hx(k),hy(k),hz(k),0,0,psi(k));hold on  
+    G2=Drone_Plot_3D(x(1,k),x(2,k),x(3,k),0,0,x(4,k));hold on  
     G3 = plot3(hxd(1:k),hyd(1:k),hzd(1:k),'Color',[32,185,29]/255,'linewidth',1.5);
-    G4 = plot3(hx(1:k),hy(1:k),hz(1:k),'-.','Color',[56,171,217]/255,'linewidth',1.5);
+    G4 = plot3(x(1,1:k),x(2,1:k),x(3,1:k),'-.','Color',[56,171,217]/255,'linewidth',1.5);
     G5 = plot3(h_N(1:N,1,k),h_N(1:N,2,k),h_N(1:N,3,k),'Color',[100,100,100]/255,'linewidth',0.1);
 
     pause(0)
@@ -181,78 +167,40 @@ xlabel('$\textrm{Time }[s]$','Interpreter','latex','FontSize',9);
 % xlabel('$Time[s]$','Interpreter','latex','FontSize',9);
 
 
-figure
-
-subplot(4,1,1)
-plot(Tu(1,:))
-hold on
-
-legend("Tx_u","Tx_{est}")
-ylabel('x [m]');
-%title('$\textrm{Evolution of h }$','Interpreter','latex','FontSize',9);
-
-subplot(4,1,2)
-plot(Tu(2,:))
-hold on
-
-legend("Ty_u","Ty_{est}")
-ylabel('y [m]'); 
-
-subplot(4,1,3)
-plot(Tu(3,:))
-hold on
-
-grid on
-legend("Tz_u","Tz_{est}")
-ylabel('z [m]'); 
-
-subplot(4,1,4)
-plot(Tu(4,:))
-hold on
-
-legend("Tpsi_u","Tpsi_{est}")
-ylabel('psi [rad]'); 
-xlabel('$\textrm{Time }[kT_0]$','Interpreter','latex','FontSize',9);
-% %%%%%%%%%%%%%
 
 figure(5)
 
-plot(vref(1,1:end))
-hold on
 plot(v(1,1:end))
 hold on
 plot(vref(1,1:end))
-legend("ul_c","ul","ul_{ref}")
+legend("ul","ul_{ref}")
 ylabel('x [m/s]'); xlabel('s [ms]');
 %title('$\textrm{Evolution of ul Errors}$','Interpreter','latex','FontSize',9);
 
 figure(6)
-plot(vref(2,1:end))
-hold on
+
 plot(v(2,1:end))
 hold on
 plot(vref(2,1:end))
-legend("um_c","um","um_{ref}")
+legend("um","um_{ref}")
 ylabel('y [m/s]'); xlabel('s [ms]');
 title('$\textrm{Evolution of um Errors}$','Interpreter','latex','FontSize',9);
 
 figure(7)
-plot(vref(3,1:end))
-hold on
+
 plot(v(3,1:end))
 hold on
 plot(vref(3,1:end))
-legend("un_c","un","un_{ref}")
+legend("un","un_{ref}")
 ylabel('z [m/ms]'); xlabel('s [ms]');
 title('$\textrm{Evolution of un Errors}$','Interpreter','latex','FontSize',9);
 
 figure(8)
-plot(vref(4,1:end))
-hold on
+
 plot(v(4,1:end))
 hold on
 plot(vref(4,1:end))
-legend("w_c","w","w_{ref}")
+legend("w","w_{ref}")
 ylabel('psi [rad/s]'); xlabel('s [ms]');
 title('$\textrm{Evolution of w Errors}$','Interpreter','latex','FontSize',9);
 

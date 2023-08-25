@@ -12,13 +12,13 @@ wx = 0;
 wy = 0;
 wz = vd(4);
 
-velmsg.Linear.X = vx;
-velmsg.Linear.Y = vy;
-velmsg.Linear.Z = vz;
+velmsg.Twist.Linear.X = vx;
+velmsg.Twist.Linear.Y = vy;
+velmsg.Twist.Linear.Z = vz;
 
-velmsg.Angular.X = wx;
-velmsg.Angular.Y = wy;
-velmsg.Angular.Z = wz;
+velmsg.Twist.Angular.X = wx;
+velmsg.Twist.Angular.Y = wy;
+velmsg.Twist.Angular.Z = wz;
 
 
 send(robot,velmsg);

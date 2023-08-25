@@ -1,12 +1,17 @@
-function [v,Tu] = dyn_model_adapUAV(chi_uav, v, vref, psi, L, ts, t)
+function x_p = f_Dinamica_UAV(x, vref, L, chi_uav)
 
-%% EXTRACCION OF GENERALIZED VECTOR
-u = v(1);
-w = v(4);
 a = L(1);
 b = L(2);
+c = L(3);
 
-% INERCIAL MATRIX
+psi = x(4);
+w = x(8);
+
+J = [cos(psi), -sin(psi), 0, -(a*sin(psi)+b*cos(psi));...
+     sin(psi), cos(psi), 0,   (a*cos(psi)-b*sin(psi));...
+     0, 0, 1, 0;...
+     0, 0, 0, 1]; 
+ 
 M11=chi_uav(1);
 M12=0;
 M13=0;
@@ -59,17 +64,19 @@ G31=0;
 G41=0;
 
 G=[G11;G21;G31;G41];
+%% Definicion del Sistemaa
 
+A = [zeros(4,4),J;...
+     zeros(4,4),-inv(M)*C];
 
+B = [zeros(4,4);
+     inv(M)];
+    
+aux = [zeros(4,1);...
+       -inv(M)*G]; 
 
-Tu = 1.5*inv(M)*(C*0.1*v-G);
-Tu(1) = (sign(0.2*sin(0.05*t)+3*cos(-0.1*t)));
-Tu(2) = 2*rand()*(sign(0.2*sin(0.05*t)+3*cos(-0.05*t)));
-Tu(3) = -0.5*(2*sin(0.05*t)+1.5*cos(-0.025*t));
-Tu(4) = 1.5*(cos(0.05*t)+0.5*cos(0.025*7.5*t));
+%% vector que incluye el vector de estados y la referencia
 
-vp = inv(M)*(vref-C*v-G - 1*Tu);
-%vp = inv(M)*(vref-C*v-G);
-v = v +vp*ts;
+x_p= A * x + B * vref + aux;
+
 end
-

@@ -2,8 +2,8 @@
 %% Clear variables
 clc, clear all, close all;
 
-load("chi_values.mat");
-chi_real = chi';
+load("chi_simple.mat");
+chi_uav = chi';
 
 %% DEFINITION OF TIME VARIABLES
 f = 30 % Hz 
@@ -29,10 +29,10 @@ psi(1) = 0;
 h = [x;y;z;psi]
 
 %% INITIAL GENERALIZE VELOCITIES
-v = [0; 0;0;0];
-
+u = [0; 0;0;0];
+x = [h;u]; 
 %% GENERAL VECTOR DEFINITION
-H = [h;v];
+H = [h;u];
 
 %% Variables definidas por la TRAYECTORIA y VELOCIDADES deseadas
 [hxd, hyd, hzd, hpsid, hxdp, hydp, hzdp, hpsidp] = Trayectorias(3,t,5);
@@ -53,11 +53,12 @@ R = 0.01*eye(4);
 bounded = 1.5*[1.2; -1.2; 1.2; -1.2; 1.2; -1.2; 5.5; -5.5];
 
 %% Definicion del vectro de control inicial del sistema
-vcc = zeros(N,4);
+v_N = zeros(N,4);
 H0 = repmat(H,1,N+1)'; 
+x_N = H0;
 
 % Definicion del optimizador
-[f, solver, args] = mpc_drone(chi_real,bounded, N, L, ts, Q, R);
+[f, solver, args] = mpc_drone(chi_uav,bounded, N, L, ts, Q, R);
 
 % Chi estimado iniciales
 chi_estimados(:,1) = chi';
@@ -68,60 +69,44 @@ for k=1:length(t)-N
     %% Generacion del; vector de error del sistema
     he(:,k)=hd(1:4,k)-h(:,k);
     
-    args.p(1:8) = [h(:,k);v(:,k)]; % Generacion del estado del sistema
-    
-    for i = 1:N % z
-        args.p(8*i+1:8*i+8)=hd(:,k+i);
-%         args.p(4*i+5:4*i+7)=obs;
-    end 
-    
-    args.x0 = [reshape(H0',8*(N+1),1);reshape(vcc',size(vcc,2)*N,1)]; % initial value of the optimization variables
-    tic;
-    sol = solver('x0', args.x0, 'lbx', args.lbx, 'ubx', args.ubx,...
-            'lbg', args.lbg, 'ubg', args.ubg,'p',args.p);
-    toc
+    %%
+    tic
+    [u_opt,x_opt] = SolverUAV_MPC_din(h,u,hd,N,x_N,v_N,args,solver,k);
     sample(k)=toc;
-    opti = reshape(full(sol.x(8*(N+1)+1:end))',4,N)';
-    H0 = reshape(full(sol.x(1:8*(N+1)))',8,N+1)';
-    hfut(:,1:4,k+1) = H0(:,1:4);
-    vc(:,k)= opti(1,:)';
+    
+    uc(:,k)= u_opt(1,:)';
+    h_N(:,1:4,k) = x_opt(:,1:4);
+    %%
     
     %% Aceleracion
     if k>1
-    ulp(k)=(vc(1,k)- vc(1,k-1))/ts;
-    ump(k)=(vc(2,k)- vc(2,k-1))/ts;
-    unp(k)=(vc(3,k)- vc(3,k-1))/ts;
-    wp(k) =(vc(4,k)- vc(4,k-1))/ts;
+    uc_p(:,k)=(uc(:,k)- uc(:,k-1))/ts;
     else
-    ulp(k)=0;   
-    ump(k)=0; 
-    unp(k)=0; 
-    wp(k) =0; 
+    uc_p(:,k) = [0;0;0;0];    
     end
     %vcp(:,k) = [ulp(k);ump(k);unp(k);wp(k)];
-    vcp(:,k) = [0;0;0;0];
+    uc_p(:,k) = [0;0;0;0];
     
     %% DYNAMIC ESTIMATION
-    [Test(:,k),chi_estimados(:,k+1)] = estimadaptive_dymanic_UAV(chi_estimados(:,k),vcp(:,k), vc(:,k), v(:,k), hd(1:4,k), h(:,k) ,1.5, L, ts);
-    vref(:,k)= vc(:,k)+Test(:,k);
+    [Test(:,k),chi_estimados(:,k+1)] = estimadaptive_dymanic_UAV(chi_estimados(:,k),uc_p(:,k), uc(:,k), u(:,k), hd(1:4,k), h(:,k) ,1.5, L, ts);
+    u_ref(:,k)= uc(:,k);%+Test(:,k);
     
     %% Dinamica del sistema 
-    [v(:, k+1),Tu(:,k)] = dyn_model_adapUAV(chi_real, v(:,k), vref(:,k), psi(k), L,ts,k);
+%      [u(:, k+1),Tu(:,k)] = dyn_model_adapUAV(chi_uav, u(:,k), vref(:,k), psi(k), L,ts,k);
     
-    %% Simulacion del sistema
-%     h=h+system(h,[ul(k+1);um(k+1);un(k+1);w(k+1)],f,ts);
+    x(:,k+1) = UAV_Dinamica_RK4(chi_uav,x(:,k),u_ref(:,k),L,ts);
     
-    h(:,k+1) = h(:,k)+ UAV_RK4(h(:,k),v(:,k+1),ts);
-    hx(k+1) = h(1,k+1);
-    hy(k+1) = h(2,k+1);
-    hz(k+1) = h(3,k+1);      
-    psi(k+1) = Angulo(h(4,k+1));
-    
+    h(:,k+1) = x(1:4,k+1);
+    u(:,k+1) = x(5:8,k+1)+ (3*rand(4,1));
         
     %% Actualizacion de los resultados del optimizador para tener una soluciona aproximada a la optima
-    opti(2,:) = opti(2,:)+Test(:,k)';
-    vcc = [opti(2:end,:);opti(end,:)];
-    H0 = [H0(2:end,:);H0(end,:)];
+    
+%     vcc = [opti(2:end,:);opti(end,:)];
+%     H0 = [H0(2:end,:);H0(end,:)];
+%     
+    u_opt(2,:) = u_opt(2,:)+Test(:,k)';
+    v_N = [u_opt(2:end,:);u_opt(end,:)];
+    x_N = [x_opt(2:end,:);x_opt(end,:)];
 end
 toc
 %%
@@ -132,25 +117,25 @@ set(gcf, 'PaperUnits', 'inches');
 set(gcf, 'PaperSize', [4 2]);
 set(gcf, 'PaperPositionMode', 'manual');
     set(gcf, 'PaperPosition', [0 0 8 3]);
-    h = light;
-    h.Color=[0.65,0.65,0.65];
-    h.Style = 'infinite';
+    luz = light;
+    luz.Color=[0.65,0.65,0.65];
+    luz.Style = 'infinite';
 %b) Dimenciones del Robot
     Drone_Parameters(0.02);
 %c) Dibujo del Robot    
-    G2=Drone_Plot_3D(hx(1),hy(1),hz(1),0,0,psi(1));hold on
+    G2=Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
 
-    G3 = plot3(hx(1),hy(1),hz(1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on   
+    G3 = plot3(h(1,1),h(2,1),h(3,1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on   
     G4 = plot3(hxd(1),hyd(1),hzd(1),'Color',[32,185,29]/255,'linewidth',1.5);
-    G5 = Drone_Plot_3D(hx(1),hy(1),hz(1),0,0,psi(1));hold on
+    G5 = Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
 %    plot3(hxd(ubicacion),hyd(ubicacion),hzd(ubicacion),'*r','linewidth',1.5);
     view(20,15);
     
-    G6=Drone_Plot_3D(hx(1),hy(1),hz(1),0,0,psi(1));hold on
+    G6=Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
 
-    G7 = plot3(hx(1),hy(1),hz(1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on   
+    G7 = plot3(h(1,1),h(2,1),h(3,1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on   
     G8 = plot3(hxd(1),hyd(1),hzd(1),'Color',[32,185,29]/255,'linewidth',1.5);
-    G9 = Drone_Plot_3D(hx(1),hy(1),hz(1),0,0,psi(1));hold on
+    G9 = Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
 
 for k = 1:10:length(t)-N
     %drawnow
@@ -159,10 +144,10 @@ for k = 1:10:length(t)-N
     delete(G4);
     delete(G5);
    
-    G2=Drone_Plot_3D(hx(k),hy(k),hz(k),0,0,psi(k));hold on  
+    G2=Drone_Plot_3D(h(1,k),h(2,k),h(3,k),0,0,h(4,k));hold on  
     G3 = plot3(hxd(1:k),hyd(1:k),hzd(1:k),'Color',[32,185,29]/255,'linewidth',1.5);
-    G4 = plot3(hx(1:k),hy(1:k),hz(1:k),'-.','Color',[56,171,217]/255,'linewidth',1.5);
-    G5 = plot3(hfut(1:N,1,k),hfut(1:N,2,k),hfut(1:N,3,k),'Color',[100,100,100]/255,'linewidth',0.1);
+    G4 = plot3(h(1,1:k),h(2,1:k),h(3,1:k),'-.','Color',[56,171,217]/255,'linewidth',1.5);
+    G5 = plot3(h_N(1:N,1,k),h_N(1:N,2,k),h_N(1:N,3,k),'Color',[100,100,100]/255,'linewidth',0.1);
 
     pause(0)
 end
@@ -223,41 +208,41 @@ xlabel('$\textrm{Time }[kT_0]$','Interpreter','latex','FontSize',9);
 
 figure(5)
 
-plot(vc(1,1:end))
+plot(uc(1,1:end))
 hold on
-plot(v(1,1:end))
+plot(u(1,1:end))
 hold on
-plot(vref(1,1:end))
+plot(u_ref(1,1:end))
 legend("ul_c","ul","ul_{ref}")
 ylabel('x [m/s]'); xlabel('s [ms]');
 %title('$\textrm{Evolution of ul Errors}$','Interpreter','latex','FontSize',9);
 
 figure(6)
-plot(vc(2,1:end))
+plot(uc(2,1:end))
 hold on
-plot(v(2,1:end))
+plot(u(2,1:end))
 hold on
-plot(vref(2,1:end))
+plot(u_ref(2,1:end))
 legend("um_c","um","um_{ref}")
 ylabel('y [m/s]'); xlabel('s [ms]');
 title('$\textrm{Evolution of um Errors}$','Interpreter','latex','FontSize',9);
 
 figure(7)
-plot(vc(3,1:end))
+plot(uc(3,1:end))
 hold on
-plot(v(3,1:end))
+plot(u(3,1:end))
 hold on
-plot(vref(3,1:end))
+plot(u_ref(3,1:end))
 legend("un_c","un","un_{ref}")
 ylabel('z [m/ms]'); xlabel('s [ms]');
 title('$\textrm{Evolution of un Errors}$','Interpreter','latex','FontSize',9);
 
 figure(8)
-plot(vc(4,1:end))
+plot(uc(4,1:end))
 hold on
-plot(v(4,1:end))
+plot(u(4,1:end))
 hold on
-plot(vref(4,1:end))
+plot(u_ref(4,1:end))
 legend("w_c","w","w_{ref}")
 ylabel('psi [rad/s]'); xlabel('s [ms]');
 title('$\textrm{Evolution of w Errors}$','Interpreter','latex','FontSize',9);
