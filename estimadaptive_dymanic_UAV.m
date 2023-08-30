@@ -37,11 +37,12 @@ Yu = [s1, b*s4,  0,    0,  0,    0,    0,              0,  0, mu_l, mu_m*w, a*w^
  
      %% AAPTATIVE CONTROLLER
 
-K = 0.01*eye(19); %fijo 0.1
+K = 0.4*eye(19); %fijo 0.1
 
 xp = K*Yu'*sigma;
 x = x + xp*ts;
 
-Test = 1*tanh(Yu*x);
+%Test = 1*tanh(Yu*x);
+ Test = Yu*x;
 
 end

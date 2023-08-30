@@ -9,7 +9,7 @@ chi_uav = chi';
 f = 30 % Hz 
 ts = 1/f;
 to = 0;
-tf = 20;
+tf = 10;
 t = (to:ts:tf);
 
 %% Definicion del horizonte de prediccion
@@ -50,7 +50,7 @@ Q = 1*eye(4);
 R = 0.01*eye(4);
 
 %% Definicion de los limites de las acciondes de control
-bounded = 1.5*[1.2; -1.2; 1.2; -1.2; 1.2; -1.2; 5.5; -5.5];
+bounded = 3*[1.2; -1.2; 1.2; -1.2; 1.2; -1.2; 5.5; -5.5];
 
 %% Definicion del vectro de control inicial del sistema
 v_N = zeros(N,4);
@@ -85,72 +85,76 @@ for k=1:length(t)-N
     uc_p(:,k) = [0;0;0;0];    
     end
     %vcp(:,k) = [ulp(k);ump(k);unp(k);wp(k)];
-    uc_p(:,k) = [0;0;0;0];
+     uc_p(:,k) = [0;0;0;0];
     
     %% DYNAMIC ESTIMATION
     [Test(:,k),chi_estimados(:,k+1)] = estimadaptive_dymanic_UAV(chi_estimados(:,k),uc_p(:,k), uc(:,k), u(:,k), hd(1:4,k), h(:,k) ,1.5, L, ts);
     u_ref(:,k)= uc(:,k);%+Test(:,k);
     
     %% Dinamica del sistema 
-%      [u(:, k+1),Tu(:,k)] = dyn_model_adapUAV(chi_uav, u(:,k), vref(:,k), psi(k), L,ts,k);
+
+    Tu(:,k) = zeros(8,1);
+    Tu(5,k) = 2*(sign(0.2*sin(0.05*k)+3*cos(-0.1*k)));
+    Tu(6,k) = 2*rand()*(sign(0.2*sin(0.05*k)+3*cos(-0.05*k)));
+    Tu(7,k) = 1*sin(0.05*k)+1*cos(-0.025*k);
+    Tu(8,k) = 2*(sign(0.2*sin(0.04*k)+3*cos(-0.04*k)));
     
-    x(:,k+1) = UAV_Dinamica_RK4(chi_uav,x(:,k),u_ref(:,k),L,ts);
+    Tu(:,k) = 0.5*Tu(:,k);
+    
+    x(:,k+1) = UAV_Dinamica_RK4_T(chi_uav,x(:,k),u_ref(:,k),L,ts,Tu(:,k));
     
     h(:,k+1) = x(1:4,k+1);
-    u(:,k+1) = x(5:8,k+1)+ (3*rand(4,1));
+    u(:,k+1) = x(5:8,k+1);
         
     %% Actualizacion de los resultados del optimizador para tener una soluciona aproximada a la optima
-    
-%     vcc = [opti(2:end,:);opti(end,:)];
-%     H0 = [H0(2:end,:);H0(end,:)];
-%     
+     
     u_opt(2,:) = u_opt(2,:)+Test(:,k)';
     v_N = [u_opt(2:end,:);u_opt(end,:)];
     x_N = [x_opt(2:end,:);x_opt(end,:)];
 end
 toc
 %%
-close all; paso=1; 
-%a) Parámetros del cuadro de animación
-figure
-set(gcf, 'PaperUnits', 'inches');
-set(gcf, 'PaperSize', [4 2]);
-set(gcf, 'PaperPositionMode', 'manual');
-    set(gcf, 'PaperPosition', [0 0 8 3]);
-    luz = light;
-    luz.Color=[0.65,0.65,0.65];
-    luz.Style = 'infinite';
-%b) Dimenciones del Robot
-    Drone_Parameters(0.02);
-%c) Dibujo del Robot    
-    G2=Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
-
-    G3 = plot3(h(1,1),h(2,1),h(3,1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on   
-    G4 = plot3(hxd(1),hyd(1),hzd(1),'Color',[32,185,29]/255,'linewidth',1.5);
-    G5 = Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
-%    plot3(hxd(ubicacion),hyd(ubicacion),hzd(ubicacion),'*r','linewidth',1.5);
-    view(20,15);
-    
-    G6=Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
-
-    G7 = plot3(h(1,1),h(2,1),h(3,1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on   
-    G8 = plot3(hxd(1),hyd(1),hzd(1),'Color',[32,185,29]/255,'linewidth',1.5);
-    G9 = Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
-
-for k = 1:10:length(t)-N
-    %drawnow
-    delete(G2);
-    delete(G3);
-    delete(G4);
-    delete(G5);
-   
-    G2=Drone_Plot_3D(h(1,k),h(2,k),h(3,k),0,0,h(4,k));hold on  
-    G3 = plot3(hxd(1:k),hyd(1:k),hzd(1:k),'Color',[32,185,29]/255,'linewidth',1.5);
-    G4 = plot3(h(1,1:k),h(2,1:k),h(3,1:k),'-.','Color',[56,171,217]/255,'linewidth',1.5);
-    G5 = plot3(h_N(1:N,1,k),h_N(1:N,2,k),h_N(1:N,3,k),'Color',[100,100,100]/255,'linewidth',0.1);
-
-    pause(0)
-end
+% close all; paso=1; 
+% %a) Parámetros del cuadro de animación
+% figure
+% set(gcf, 'PaperUnits', 'inches');
+% set(gcf, 'PaperSize', [4 2]);
+% set(gcf, 'PaperPositionMode', 'manual');
+%     set(gcf, 'PaperPosition', [0 0 8 3]);
+%     luz = light;
+%     luz.Color=[0.65,0.65,0.65];
+%     luz.Style = 'infinite';
+% %b) Dimenciones del Robot
+%     Drone_Parameters(0.02);
+% %c) Dibujo del Robot    
+%     G2=Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
+% 
+%     G3 = plot3(h(1,1),h(2,1),h(3,1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on   
+%     G4 = plot3(hxd(1),hyd(1),hzd(1),'Color',[32,185,29]/255,'linewidth',1.5);
+%     G5 = Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
+% %    plot3(hxd(ubicacion),hyd(ubicacion),hzd(ubicacion),'*r','linewidth',1.5);
+%     view(0,90);
+%     
+% %     G6=Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
+% 
+%     G7 = plot3(h(1,1),h(2,1),h(3,1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,grid on   
+%     G8 = plot3(hxd(1),hyd(1),hzd(1),'Color',[32,185,29]/255,'linewidth',1.5);
+% %     G9 = Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
+% 
+% for k = 1:10:length(t)-N
+%     drawnow
+%     delete(G2);
+%     delete(G3);
+%     delete(G4);
+%     delete(G5);
+%    
+%     G2=Drone_Plot_3D(h(1,k),h(2,k),h(3,k),0,0,h(4,k));hold on  
+%     G3 = plot3(hxd(1:k),hyd(1:k),hzd(1:k),'Color',[32,185,29]/255,'linewidth',1.5);
+%     G4 = plot3(h(1,1:k),h(2,1:k),h(3,1:k),'-.','Color',[56,171,217]/255,'linewidth',1.5);
+%     G5 = plot3(h_N(1:N,1,k),h_N(1:N,2,k),h_N(1:N,3,k),'Color',[100,100,100]/255,'linewidth',0.1);
+% 
+%     pause(0)
+% end
 
 figure
 set(gcf, 'PaperUnits', 'inches');
@@ -175,7 +179,7 @@ xlabel('$\textrm{Time }[s]$','Interpreter','latex','FontSize',9);
 figure
 
 subplot(4,1,1)
-plot(Tu(1,:))
+plot(Tu(5,:))
 hold on
 plot(Test(1,:))
 legend("Tx_u","Tx_{est}")
@@ -183,14 +187,14 @@ ylabel('x [m]');
 %title('$\textrm{Evolution of h }$','Interpreter','latex','FontSize',9);
 
 subplot(4,1,2)
-plot(Tu(2,:))
+plot(Tu(6,:))
 hold on
 plot(Test(2,:))
 legend("Ty_u","Ty_{est}")
 ylabel('y [m]'); 
 
 subplot(4,1,3)
-plot(Tu(3,:))
+plot(Tu(7,:))
 hold on
 plot(Test(3,:))
 grid on
@@ -198,7 +202,7 @@ legend("Tz_u","Tz_{est}")
 ylabel('z [m]'); 
 
 subplot(4,1,4)
-plot(Tu(4,:))
+plot(Tu(8,:))
 hold on
 plot(Test(4,:))
 legend("Tpsi_u","Tpsi_{est}")
