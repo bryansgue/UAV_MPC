@@ -74,12 +74,15 @@ B = [zeros(4,4);
     
 aux = [zeros(4,1);...
        -inv(M)*G]; 
+   
+F = [zeros(4,1);...
+     -inv(M)*Tu];
 
 %% vector que incluye el vector de estados y la referencia
 
 
 
 
-x_p= A * x + B * vref + aux - Tu;
+x_p= A * x + B * vref + aux + F;
 
 end

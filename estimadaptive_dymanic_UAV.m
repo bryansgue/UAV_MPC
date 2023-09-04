@@ -1,4 +1,4 @@
-function [Test,x] = estimadaptive_dymanic_UAV(x, vcp, vc, v, qd, q, A, L, ts)
+function [Test,x] = estimadaptive_dymanic_UAV(x, vcp, vc, v, qd, q, A, B, L, ts)
 %                                         vcp, vc, v, chies, K1, K2, L, ts                                   
 %  Summary of this function goes here
 %  Detailed explanation goes here
@@ -8,8 +8,8 @@ b = L(2);
 %% Gain Matrices
 A = A*eye(size(v,1));
 %% Control error veclocity
-ve = (vc -v);
-qe = (qd - q);
+ve = tanh(vc -v);
+qe = tanh(qd - q);
 sigma = ve + A*qe;
 
 vr = sigma + v;
@@ -37,12 +37,13 @@ Yu = [s1, b*s4,  0,    0,  0,    0,    0,              0,  0, mu_l, mu_m*w, a*w^
  
      %% AAPTATIVE CONTROLLER
 
-K = 0.4*eye(19); %fijo 0.1
+K = B*eye(19); %fijo 0.1
 
 xp = K*Yu'*sigma;
 x = x + xp*ts;
 
 %Test = 1*tanh(Yu*x);
- Test = Yu*x;
+Test = Yu*x;
+Test = min(max(Test, -2), 2);
 
 end

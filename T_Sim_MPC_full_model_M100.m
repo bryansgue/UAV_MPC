@@ -12,18 +12,20 @@ tfinal = 15;
 t = [0:ts:tfinal];
 
 % Definicion del horizonte de prediccion
-N = 20;
+N = 5;
 
 % Definicion de las constantes del sistema
 g = 9.81;
 
-load("values_final.mat");
-chi = values_final;
+chi_vel = [ 0.0002    2.2455    2.1997    1.0160];
+chi_eul = [-0.1140   -4.6592   -2.2340   62.2132  -62.3365  -14.2061   -7.0005    2.8220    3.1867    2.3961   15.9205  -18.1003   -2.9719   -4.1456 -2.0703   -0.4450    2.9815   31.6103  1.8608  -20.0883   21.0181  -35.1003   -0.3361   13.4542    ];
+
+chi_model = [chi_eul, chi_vel];
 
 zp_ref_max = 3;
 phi_max = 0.7;
 theta_max = 0.7;
-psi_max = 0.7;
+psi_max = 3;
 
 zp_ref_min = -zp_ref_max;
 phi_min = -phi_max;
@@ -40,7 +42,7 @@ bounded = [zp_ref_max; zp_ref_min; phi_max; phi_min; theta_max; theta_min; psi_m
 
 val0 = 3; % Errores
 val1 = 1; % Fuerza
-val2 = 3; % Torques
+val2 = 1; % Torques
 
 % Deficion de la matriz de la matriz de control
 K1 = eye(3);
@@ -101,15 +103,11 @@ x_N = repmat(H,1,N+1)';
 mul = 15;
 [hxd, hyd, hzd, psid, hxdp, hydp, hzdp, psidp] = Trayectorias(3,t,mul);
 %% GENERALIZED DESIRED SIGNALS
-%psid = -15*ones(1,length(t));;
 
-% hxd = 10*ones(1,length(t));
-% hyd = 20*ones(1,length(t));
-% hzd = 5*ones(1,length(t));
 hd = [hxd; hyd; hzd; 0*hxd; 0*hyd; 0*hzd; 0*hxd; 0*hyd; 0*hzd; 0*hxd; 0*hyd; 0*hzd];
 
 %% Definicion del optimizador
-[f, solver, args] = mpc_fullUAV3D_M100(bounded, N, chi, ts, K1, K2, val0, val1, val2);
+[f, solver, args] = mpc_full_model_UAV3D_M100(bounded, N, chi_model, ts, K1, K2, val0, val1, val2);
 
 %% Control values torques
 
@@ -137,7 +135,7 @@ for k=1:length(t)-N
     
     %% System evolution
     
-    s(:,k+1) = UAV_dynamic_Casadi(f,ts, s(:,k),uc(:,k));
+    s(:,k+1) = UAV_dynamic_Casadi(f,ts, s(:,k),uc(:,k))
     
     %    Actualizacion de los resultados del optimizador para tener una soluciona aproximada a la optima
     v_N = [u_opt(2:end,:);u_opt(end,:)];

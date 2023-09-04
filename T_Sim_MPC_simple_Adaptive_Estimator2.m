@@ -9,7 +9,7 @@ chi_uav = chi';
 f = 30 % Hz 
 ts = 1/f;
 to = 0;
-tf = 20;
+tf = 15;
 t = (to:ts:tf);
 
 %% Definicion del horizonte de prediccion
@@ -47,10 +47,10 @@ hd = [hxd;hyd;hzd;0*hpsid;hxdp; hydp; hzdp; 0*hpsidp];
 Q = 1*eye(4);
 
 %% Definicion de la matriz de las acciones de control
-R = 0.01*eye(4);
+R = 0.009*eye(4);
 
 %% Definicion de los limites de las acciondes de control
-bounded = 3*[1.2; -1.2; 1.2; -1.2; 1.2; -1.2; 5.5; -5.5];
+bounded = 1.5*[1.2; -1.2; 1.2; -1.2; 1.2; -1.2; 5.5; -5.5];
 
 %% Definicion del vectro de control inicial del sistema
 v_N = zeros(N,4);
@@ -58,29 +58,13 @@ H0 = repmat(H,1,N+1)';
 x_N = H0;
 
 % Definicion del optimizador
-[f, solver, args] = mpc_drone(chi_uav,bounded, N, L, ts, Q, R);
-A = 2;
-B = 0.2;
+[f, solver, args] = mpc_drone_estimator(chi_uav,bounded, N, L, ts, Q, R);
+A = 0.01;
+B = 0.01;
 % Chi estimado iniciales
 chi_estimados(:,1) = chi';
 
-% External torque of the system
-v_extern = zeros(4, length(t));
-
-% Aux time variable 
-t_aux = (t >= 5) & (t < 10);
-v_extern(1, t_aux) = 1.7;
-v_extern(2, t_aux) = -1.2;
-v_extern(3, t_aux) = 1.8;
-v_extern(4, t_aux) = -1.0;
-
-
-t_aux_1 = (t >= 13) & (t < 18);
-v_extern(1, t_aux_1) = 1.8;
-v_extern(2, t_aux_1) = -1.5;
-v_extern(3, t_aux_1) = 1.1;
-v_extern(4, t_aux_1) = -1.9;
-
+Test(:,1) = [0;0;0;0];
 
 tic
 for k=1:length(t)-N
@@ -91,7 +75,7 @@ for k=1:length(t)-N
     
     %%
     tic
-    [u_opt,x_opt] = SolverUAV_MPC_din(h,u,hd,N,x_N,v_N,args,solver,k);
+    [u_opt,x_opt] = SolverUAV_MPC_din_estimator(h,u,hd,N,x_N,v_N,args,solver,k,1*Test(:,k));
     sample(k)=toc;
     
     uc(:,k)= u_opt(1,:)';
@@ -105,11 +89,11 @@ for k=1:length(t)-N
     uc_p(:,k) = [0;0;0;0];    
     end
     %vcp(:,k) = [ulp(k);ump(k);unp(k);wp(k)];
-     uc_p(:,k) = [0;0;0;0];
+%      uc_p(:,k) = [0;0;0;0];
     
     %% DYNAMIC ESTIMATION
-    [Test(:,k),chi_estimados(:,k+1)] = estimadaptive_dymanic_UAV(chi_estimados(:,k),uc_p(:,k), uc(:,k), u(:,k), hd(1:4,k), h(:,k) ,A,B, L, ts);
-    u_ref(:,k)= uc(:,k)+Test(:,k);
+    [Test(:,k+1),chi_estimados(:,k+1)] = estimadaptive_dymanic_UAV(chi_estimados(:,k),uc_p(:,k), uc(:,k), u(:,k), hd(1:4,k), h(:,k) ,A,B, L, ts);
+    u_ref(:,k)= uc(:,k);%+Test(:,k+1);
     
     %% Dinamica del sistema 
 
@@ -119,7 +103,7 @@ for k=1:length(t)-N
     Tu(3,k) = 1*sin(0.05*k)+1*cos(-0.025*k);
     Tu(4,k) = 1.5*(sign(0.2*sin(0.04*k)+3*cos(-0.04*k)));
     
- %    Tu(:,k) = v_extern(:,k);
+    Tu(:,k) = Tu(:,k);
     
     x(:,k+1) = UAV_Dinamica_RK4_T(chi_uav,x(:,k),u_ref(:,k),L,ts,Tu(:,k));
     
@@ -128,7 +112,7 @@ for k=1:length(t)-N
         
     %% Actualizacion de los resultados del optimizador para tener una soluciona aproximada a la optima
      
-    u_opt(2,:) = u_opt(2,:)+Test(:,k)';
+%       u_opt(2,:) = u_opt(2,:)+Test(:,k)';
     v_N = [u_opt(2:end,:);u_opt(end,:)];
     x_N = [x_opt(2:end,:);x_opt(end,:)];
 end
@@ -153,7 +137,7 @@ toc
     G4 = plot3(hxd(1),hyd(1),hzd(1),'Color',[32,185,29]/255,'linewidth',1.5);
     G5 = Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
 %    plot3(hxd(ubicacion),hyd(ubicacion),hzd(ubicacion),'*r','linewidth',1.5);
-    view(-45,45);
+    view(45,45);
     
 %     G6=Drone_Plot_3D(h(1,1),h(2,1),h(3,1),0,0,h(4,1));hold on
 
