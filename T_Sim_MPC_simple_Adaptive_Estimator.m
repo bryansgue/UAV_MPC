@@ -9,7 +9,7 @@ chi_uav = chi';
 f = 30 % Hz 
 ts = 1/f;
 to = 0;
-tf = 20;
+tf = 30;
 t = (to:ts:tf);
 
 %% Definicion del horizonte de prediccion
@@ -74,12 +74,17 @@ v_extern(2, t_aux) = -1.2;
 v_extern(3, t_aux) = 1.8;
 v_extern(4, t_aux) = -1.0;
 
-
-t_aux_1 = (t >= 13) & (t < 18);
+t_aux_1 = (t >= 13) & (t < 19);
 v_extern(1, t_aux_1) = 1.8;
 v_extern(2, t_aux_1) = -1.5;
 v_extern(3, t_aux_1) = 1.1;
 v_extern(4, t_aux_1) = -1.9;
+
+t_aux_2 = (t >= 23) & (t < 28);
+v_extern(1, t_aux_2) = -1.8;
+v_extern(2, t_aux_2) = 1.0;
+v_extern(3, t_aux_2) = -1.5;
+v_extern(4, t_aux_2) = 1.9;
 
 
 tic
@@ -109,7 +114,7 @@ for k=1:length(t)-N
     
     %% DYNAMIC ESTIMATION
     [Test(:,k),chi_estimados(:,k+1)] = estimadaptive_dymanic_UAV(chi_estimados(:,k),uc_p(:,k), uc(:,k), u(:,k), hd(1:4,k), h(:,k) ,A,B, L, ts);
-    u_ref(:,k)= uc(:,k)+Test(:,k);
+    u_ref(:,k)= uc(:,k)+1*Test(:,k);
     
     %% Dinamica del sistema 
 
@@ -119,7 +124,7 @@ for k=1:length(t)-N
     Tu(3,k) = 1*sin(0.05*k)+1*cos(-0.025*k);
     Tu(4,k) = 1.5*(sign(0.2*sin(0.04*k)+3*cos(-0.04*k)));
     
- %    Tu(:,k) = v_extern(:,k);
+     Tu(:,k) = 1.5*v_extern(:,k);
     
     x(:,k+1) = UAV_Dinamica_RK4_T(chi_uav,x(:,k),u_ref(:,k),L,ts,Tu(:,k));
     
@@ -195,41 +200,51 @@ ylabel('$[m]$','Interpreter','latex','FontSize',9);
 xlabel('$\textrm{Time }[s]$','Interpreter','latex','FontSize',9);
 % xlabel('$Time[s]$','Interpreter','latex','FontSize',9);
 
+%%
+figure;
 
-figure
-
+% Subplot 1
 subplot(4,1,1)
-plot(Tu(1,:))
+plot(Tu(1,:), 'LineWidth', 2, 'DisplayName', 'Tx_u')
 hold on
-plot(Test(1,:))
-legend("Tx_u","Tx_{est}")
-ylabel('x [m]');
-%title('$\textrm{Evolution of h }$','Interpreter','latex','FontSize',9);
-
-subplot(4,1,2)
-plot(Tu(2,:))
-hold on
-plot(Test(2,:))
-legend("Ty_u","Ty_{est}")
-ylabel('y [m]'); 
-
-subplot(4,1,3)
-plot(Tu(3,:))
-hold on
-plot(Test(3,:))
+plot(-Test(1,:), 'LineWidth', 2, 'DisplayName', 'Tx_{est}')
 grid on
-legend("Tz_u","Tz_{est}")
-ylabel('z [m]'); 
+ylabel('x [m]', 'FontSize', 10);
+title('Evolution of x', 'FontSize', 12);
+legend('Location', 'best');
 
-subplot(4,1,4)
-plot(Tu(4,:))
+% Subplot 2
+subplot(4,1,2)
+plot(Tu(2,:), 'LineWidth', 2, 'DisplayName', 'Ty_u')
 hold on
-plot(Test(4,:))
-legend("Tpsi_u","Tpsi_{est}")
-ylabel('psi [rad]'); 
-xlabel('$\textrm{Time }[kT_0]$','Interpreter','latex','FontSize',9);
-% %%%%%%%%%%%%%
+plot(-Test(2,:), 'LineWidth', 2, 'DisplayName', 'Ty_{est}')
+grid on
+ylabel('y [m]', 'FontSize', 10);
+title('Evolution of y', 'FontSize', 12);
+legend('Location', 'best');
 
+% Subplot 3
+subplot(4,1,3)
+plot(Tu(3,:), 'LineWidth', 2, 'DisplayName', 'Tz_u')
+hold on
+plot(-Test(3,:), 'LineWidth', 2, 'DisplayName', 'Tz_{est}')
+grid on
+ylabel('z [m]', 'FontSize', 10);
+title('Evolution of z', 'FontSize', 12);
+legend('Location', 'best');
+
+% Subplot 4
+subplot(4,1,4)
+plot(Tu(4,:), 'LineWidth', 2, 'DisplayName', 'Tpsi_u')
+hold on
+plot(-Test(4,:), 'LineWidth', 2, 'DisplayName', 'Tpsi_{est}')
+grid on
+ylabel('psi [rad]', 'FontSize', 10);
+xlabel('Time [kT_0]', 'Interpreter', 'latex', 'FontSize', 10);
+legend('Location', 'best');
+
+
+%%
 figure(5)
 
 plot(uc(1,1:end))

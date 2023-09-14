@@ -58,7 +58,7 @@ H0 = repmat(H,1,N+1)';
 x_N = H0;
 
 % Definicion del optimizador
-[f, solver, args] = mpc_drone_estimator(chi_uav,bounded, N, L, ts, Q, R);
+[f, solver, args] = mpc_drone(chi_uav,bounded, N, L, ts, Q, R);
 A = 2;
 B = 0.2;
 % Chi estimado iniciales
@@ -67,7 +67,6 @@ chi_estimados(:,1) = chi';
 % External torque of the system
 v_extern = zeros(4, length(t));
 
-% Aux time variable 
 % Aux time variable 
 t_aux = (t >= 5) & (t < 10);
 v_extern(1, t_aux) = 1.7;
@@ -87,7 +86,6 @@ v_extern(2, t_aux_2) = 1.0;
 v_extern(3, t_aux_2) = -1.5;
 v_extern(4, t_aux_2) = 1.9;
 
-
 %% Inicializa el estimador
 Tu_est(:,1) = [0;0;0;0];
 Gain = 6;
@@ -95,16 +93,18 @@ Gain = 6;
 tic
 for k=1:length(t)-N
 
+
     %% Generacion del; vector de error del sistema
     he(:,k)=hd(1:4,k)-h(:,k);
     
     %%
     tic
-    [u_opt,x_opt] = SolverUAV_MPC_din_estimator(h,u,hd,N,x_N,v_N,args,solver,k,0*Tu_est(:,k));
+    [u_opt,x_opt] = SolverUAV_MPC_din(h,u,hd,N,x_N,v_N,args,solver,k);
     sample(k)=toc;
     
     uc(:,k)= u_opt(1,:)';
     h_N(:,1:4,k) = x_opt(:,1:4);
+    %%
     
     %% Aceleracion
     if k>1
@@ -117,7 +117,7 @@ for k=1:length(t)-N
     
     %% DYNAMIC ESTIMATION
     [Test(:,k),chi_estimados(:,k+1)] = estimadaptive_dymanic_UAV(chi_estimados(:,k),uc_p(:,k), uc(:,k), u(:,k), hd(1:4,k), h(:,k) ,A,B, L, ts);
-    u_ref(:,k)= uc(:,k);
+    u_ref(:,k)= uc(:,k)+1*Test(:,k)-Tu_est(:,k);
      
     %% Dinamica del sistema 
 
@@ -128,12 +128,6 @@ for k=1:length(t)-N
     Tu(4,k) = 1.5*(sign(0.2*sin(0.04*k)+3*cos(-0.04*k)));
     
     Tu(:,k) = 1.5*v_extern(:,k);
-    
-    
-    %%
-    
-    
-    %%
     
     x(:,k+1) = UAV_Dinamica_RK4_T(chi_uav,x(:,k),u_ref(:,k),L,ts,Tu(:,k));
     
@@ -151,7 +145,7 @@ for k=1:length(t)-N
         
     %% Actualizacion de los resultados del optimizador para tener una soluciona aproximada a la optima
      
-%   u_opt(2,:) = u_opt(2,:)+Test(:,k)';
+     u_opt(2,:) = u_opt(2,:)+Test(:,k)'-Tu_est(:,k)';
     v_N = [u_opt(2:end,:);u_opt(end,:)];
     x_N = [x_opt(2:end,:);x_opt(end,:)];
 end
@@ -218,9 +212,6 @@ ylabel('$[m]$','Interpreter','latex','FontSize',9);
 xlabel('$\textrm{Time }[s]$','Interpreter','latex','FontSize',9);
 % xlabel('$Time[s]$','Interpreter','latex','FontSize',9);
 
-
-figure
-
 %%
 figure;
 
@@ -229,6 +220,8 @@ subplot(4,1,1)
 plot(Tu(1,:), 'LineWidth', 2, 'DisplayName', 'Tx_u')
 hold on
 plot(Tu_est(1,:), 'LineWidth', 2, 'DisplayName', 'Tx_{est}')
+hold on
+plot(-Test(1,:), 'LineWidth', 1.5, 'DisplayName', 'Tx_{est2}')
 grid on
 ylabel('x [m]', 'FontSize', 10);
 title('Evolution of x', 'FontSize', 12);
@@ -239,6 +232,8 @@ subplot(4,1,2)
 plot(Tu(2,:), 'LineWidth', 2, 'DisplayName', 'Ty_u')
 hold on
 plot(Tu_est(2,:), 'LineWidth', 2, 'DisplayName', 'Ty_{est}')
+hold on
+plot(-Test(2,:), 'LineWidth', 1.5, 'DisplayName', 'Ty_{est2}')
 grid on
 ylabel('y [m]', 'FontSize', 10);
 title('Evolution of y', 'FontSize', 12);
@@ -249,6 +244,8 @@ subplot(4,1,3)
 plot(Tu(3,:), 'LineWidth', 2, 'DisplayName', 'Tz_u')
 hold on
 plot(Tu_est(3,:), 'LineWidth', 2, 'DisplayName', 'Tz_{est}')
+hold on
+plot(-Test(3,:), 'LineWidth', 1.5, 'DisplayName', 'Tz_{est2}')
 grid on
 ylabel('z [m]', 'FontSize', 10);
 title('Evolution of z', 'FontSize', 12);
@@ -259,12 +256,13 @@ subplot(4,1,4)
 plot(Tu(4,:), 'LineWidth', 2, 'DisplayName', 'Tpsi_u')
 hold on
 plot(Tu_est(4,:), 'LineWidth', 2, 'DisplayName', 'Tpsi_{est}')
+hold on
+plot(-Test(4,:), 'LineWidth', 1.5, 'DisplayName', 'Tpsi_{est2}')
 grid on
 ylabel('psi [rad]', 'FontSize', 10);
 xlabel('Time [kT_0]', 'Interpreter', 'latex', 'FontSize', 10);
 legend('Location', 'best');
-%% %%%%%%%%%%%%%
-
+%% 
 figure(5)
 
 plot(uc(1,1:end))

@@ -44,6 +44,6 @@ x = x + xp*ts;
 
 %Test = 1*tanh(Yu*x);
 Test = Yu*x;
-Test = min(max(Test, -2), 2);
+Test = min(max(Test, -2.5), 2.5);
 
 end

@@ -1,16 +1,15 @@
-function x_p = f_Dinamica_UAV_T(x, vref, L, chi_uav, Tu)
+function x_p = f_Dinamica_quat_UAV(x, vref, L, chi_uav)
 
 a = L(1);
 b = L(2);
 c = L(3);
 
-psi = x(4);
-w = x(8);
 
-J = [cos(psi), -sin(psi), 0, -(a*sin(psi)+b*cos(psi));...
-     sin(psi), cos(psi), 0,   (a*cos(psi)-b*sin(psi));...
-     0, 0, 1, 0;...
-     0, 0, 0, 1]; 
+w = x(11);
+quat = x(4:7);
+
+J =  QuatToRot(quat);
+
  
 M11=chi_uav(1);
 M12=0;
@@ -64,25 +63,29 @@ G31=0;
 G41=0;
 
 G=[G11;G21;G31;G41];
+
+%% Evolucion quat
+p=0;
+q=0;
+r=w;
+
+S = [0, -p, -q, -r;...
+     p, 0, r, -q;...
+     q, -r, 0, p;...
+     r, q, -p, 0];
+ 
+
 %% Definicion del Sistemaa
+A = [zeros(3,7),J,zeros(3,1);...
+     zeros(4,3), (1/2)* S, zeros(4,4);...
+     zeros(4,7),-inv(M)*C];
 
-A = [zeros(4,4),J;...
-     zeros(4,4),-inv(M)*C];
-
-B = [zeros(4,4);
+B = [zeros(7,4);
      inv(M)];
     
-aux = [zeros(4,1);...
-       -inv(M)*G]; 
-   
-F = [zeros(4,1);...
-     inv(M)*Tu];
 
 %% vector que incluye el vector de estados y la referencia
 
-
-
-
-x_p= A * x + B * vref + aux + F;
+x_p= A * x + B * vref;
 
 end

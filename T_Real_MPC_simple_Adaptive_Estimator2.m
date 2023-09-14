@@ -12,6 +12,25 @@ to = 0;
 tf = 30;
 t = (to:ts:tf);
 
+
+%% Inicializa Nodo ROS
+rosshutdown
+setenv('ROS_MASTER_URI','http://192.168.88.86:11311')
+setenv('ROS_IP','192.168.88.104')
+rosinit
+
+%% 1) PUBLISHER TOPICS & MSG ROS - UAV M100
+[velControl_topic,velControl_msg] = rospublisher('/m100/velocityControl','geometry_msgs/TwistStamped');
+u_ref(:,1) = [0.0, 0.0, 0.0, 0.0];
+send_velocities(velControl_topic, velControl_msg, u_ref(:,1));
+
+%% 2) Suscriber TOPICS & MSG ROS - UAV M100
+odomSub = rossubscriber('/dji_sdk/odometry');
+
+[pose(:,1),euler(:,1),v(:,1),omega(:,1),quat(:,1)] = odometryUAV(odomSub);
+
+euler_p(:,1) = [0;0;0];
+
 %% Definicion del horizonte de prediccion
 N = f; 
 
@@ -26,7 +45,7 @@ x(1) = 0;
 y(1) = 0;
 z(1) = 0;
 psi(1) = 0;
-h = [x;y;z;psi]
+h = [0;0;1;psi]
 
 %% INITIAL GENERALIZE VELOCITIES
 u = [0; 0;0;0];
@@ -35,7 +54,7 @@ x = [h;u];
 H = [h;u];
 
 %% Variables definidas por la TRAYECTORIA y VELOCIDADES deseadas
-[hxd, hyd, hzd, hpsid, hxdp, hydp, hzdp, hpsidp] = Trayectorias(3,t,5);
+[hxd, hyd, hzd, hpsid, hxdp, hydp, hzdp, hpsidp] = Trayectorias(3,t,12);
 
 %% GENERALIZED DESIRED SIGNALS
 %hd = [hxd; hyd; hzd; hpsid];
@@ -44,10 +63,10 @@ hd = [hxd;hyd;hzd;0*hpsid;hxdp; hydp; hzdp; 0*hpsidp];
 %hdp = [hxdp;hydp;hzdp;hpsidp];
 
 %% Deficion de la matriz de la matriz de control
-Q = 1*eye(4);
+Q = 1.5*eye(4);
 
 %% Definicion de la matriz de las acciones de control
-R = 0.01*eye(4);
+K = 0.5*eye(4);
 
 %% Definicion de los limites de las acciondes de control
 bounded = 3*[1.2; -1.2; 1.2; -1.2; 1.2; -1.2; 5.5; -5.5];
@@ -58,9 +77,9 @@ H0 = repmat(H,1,N+1)';
 x_N = H0;
 
 % Definicion del optimizador
-[f, solver, args] = mpc_drone_estimator(chi_uav,bounded, N, L, ts, Q, R);
-A = 2;
-B = 0.2;
+[f, solver, args] = mpc_drone_estimator(chi_uav,bounded, N, L, ts, Q, K);
+A = 1;
+B = 0.01;
 % Chi estimado iniciales
 chi_estimados(:,1) = chi';
 
@@ -117,28 +136,28 @@ for k=1:length(t)-N
     
     %% DYNAMIC ESTIMATION
     [Test(:,k),chi_estimados(:,k+1)] = estimadaptive_dymanic_UAV(chi_estimados(:,k),uc_p(:,k), uc(:,k), u(:,k), hd(1:4,k), h(:,k) ,A,B, L, ts);
-    u_ref(:,k)= uc(:,k);
+    u_ref(:,k)= uc(:,k)+Test(:,k)-Tu_est(:,k);
      
     %% Dinamica del sistema 
 
-    Tu(:,k) = zeros(4,1);
-    Tu(1,k) = 2*(sign(0.2*sin(0.05*k)+3*cos(-0.1*k)));
-    Tu(2,k) = 2*rand()*(sign(0.2*sin(0.05*k)+3*cos(-0.05*k)));
-    Tu(3,k) = 1*sin(0.05*k)+1*cos(-0.025*k);
-    Tu(4,k) = 1.5*(sign(0.2*sin(0.04*k)+3*cos(-0.04*k)));
+
+    send_velocities(velControl_topic, velControl_msg, u_ref(:,k));
     
-    Tu(:,k) = 1.5*v_extern(:,k);
+    %% 3) Odometria del UAV
     
+    [pose(:,k+1),euler(:,k+1),v(:,k+1),omega(:,k+1),quat(:,k+1)] = odometryUAV(odomSub);
+    
+    euler_p(:,k+1) = Euler_p(omega(:,k+1),euler(:,k+1));
+      
+    R(:,:,k) = QuatToRot(quat(:,k+1));
+
+    s(:,k+1) = inv(R(:,:,k))*v(:,k+1);
+    
+        
+    h(:,k+1) = [pose(:,k+1);euler(3,k)];
+    u(:,k+1) = [s(:,k+1);euler_p(3,k)];
     
     %%
-    
-    
-    %%
-    
-    x(:,k+1) = UAV_Dinamica_RK4_T(chi_uav,x(:,k),u_ref(:,k),L,ts,Tu(:,k));
-    
-    h(:,k+1) = x(1:4,k+1);
-    u(:,k+1) = x(5:8,k+1);
     
         %% Observador
     if k>1
@@ -155,6 +174,11 @@ for k=1:length(t)-N
     v_N = [u_opt(2:end,:);u_opt(end,:)];
     x_N = [x_opt(2:end,:);x_opt(end,:)];
 end
+
+%% 1) PUBLISHER TOPICS & MSG ROS
+u_ref = [0.0, 0, 0, 0];
+send_velocities(velControl_topic, velControl_msg, u_ref);
+
 toc
 %%
 % close all; paso=1; 
@@ -226,8 +250,7 @@ figure;
 
 % Subplot 1
 subplot(4,1,1)
-plot(Tu(1,:), 'LineWidth', 2, 'DisplayName', 'Tx_u')
-hold on
+
 plot(Tu_est(1,:), 'LineWidth', 2, 'DisplayName', 'Tx_{est}')
 grid on
 ylabel('x [m]', 'FontSize', 10);
@@ -236,8 +259,7 @@ legend('Location', 'best');
 
 % Subplot 2
 subplot(4,1,2)
-plot(Tu(2,:), 'LineWidth', 2, 'DisplayName', 'Ty_u')
-hold on
+
 plot(Tu_est(2,:), 'LineWidth', 2, 'DisplayName', 'Ty_{est}')
 grid on
 ylabel('y [m]', 'FontSize', 10);
@@ -246,8 +268,7 @@ legend('Location', 'best');
 
 % Subplot 3
 subplot(4,1,3)
-plot(Tu(3,:), 'LineWidth', 2, 'DisplayName', 'Tz_u')
-hold on
+
 plot(Tu_est(3,:), 'LineWidth', 2, 'DisplayName', 'Tz_{est}')
 grid on
 ylabel('z [m]', 'FontSize', 10);
@@ -256,8 +277,7 @@ legend('Location', 'best');
 
 % Subplot 4
 subplot(4,1,4)
-plot(Tu(4,:), 'LineWidth', 2, 'DisplayName', 'Tpsi_u')
-hold on
+
 plot(Tu_est(4,:), 'LineWidth', 2, 'DisplayName', 'Tpsi_{est}')
 grid on
 ylabel('psi [rad]', 'FontSize', 10);

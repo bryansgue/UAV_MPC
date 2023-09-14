@@ -7,7 +7,7 @@ clc;
 
 %% Inicializa Nodo ROS
 rosshutdown
-setenv('ROS_MASTER_URI','http://192.168.88.223:11311')
+setenv('ROS_MASTER_URI','http://192.168.88.86:11311')
 setenv('ROS_IP','192.168.88.104')
 rosinit
 

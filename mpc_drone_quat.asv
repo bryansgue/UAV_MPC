@@ -1,4 +1,4 @@
- function [f,solver,args] = mpc_drone(chi_uav,bounded, N, L, ts, Q, R, obs)
+ function [f,solver,args] = mpc_drone_quat(chi_uav,bounded, N, L, ts, Q, R, obs)
 
 import casadi.*;
 %% Definicion de las restricciones en las acciones de control
@@ -18,14 +18,17 @@ w_min = bounded(8);
 x = SX.sym('x'); 
 y = SX.sym('y');
 z = SX.sym('z');
-psi = SX.sym('psi');
+qw = SX.sym('qw'); 
+qx = SX.sym('qx');
+qy = SX.sym('qy');
+qz = SX.sym('qz');
 ul = SX.sym('ul');
 um = SX.sym('um');
 un = SX.sym('un');
 w = SX.sym('w');
 
 %% Definicion de cuantos estados en el sistema
-states = [x;y;z;psi;ul;um;un;w];
+states = [x;y;z;qw;qx;qy;qz;ul;um;un;w];
 n_states = length(states);
 
 %% Generacion de las variables simbolicas de las acciones del control del sistema
@@ -34,29 +37,17 @@ um_ref = SX.sym('um_ref');
 un_ref = SX.sym('un_ref');
 w_ref = SX.sym('w_ref');
 
-%% Las perturvaciones externas
-ul_extern = SX.sym('ul_extern');
-um_extern = SX.sym('um_extern');
-un_extern = SX.sym('un_extern');
-w_extern = SX.sym('w_extern');
-
 %% Defincion de cuantas acciones del control tiene el sistema
 controls = [ul_ref;um_ref;un_ref;w_ref]; 
 n_control = length(controls);
-
-%% Definicion del vector que contiene a las perturbaciones
-extern = [ul_extern;um_extern;un_extern;w_extern]; 
-n_extern = length(extern);
 
 %% Definicion de los las constantes dl sistema
 a = L(1);
 b = L(2);
 
 %% Defincion del sistema pero usando espacios de estados todo el sistema de ecuaciones
-J = [cos(psi), -sin(psi), 0, -(a*sin(psi)+b*cos(psi));...
-     sin(psi), cos(psi), 0,   (a*cos(psi)-b*sin(psi));...
-     0, 0, 1, 0;...
-     0, 0, 0, 1]; 
+quat = [qw;qx;qy;qz];
+J =  QuatToRot_cas(quat);
 
 % INERCIAL MATRIX
 M11=chi_uav(1);
@@ -113,31 +104,38 @@ G41=0;
 G=[G11;G21;G31;G41];
 %% Definicion del Sistemaa
 
-A = [zeros(4,4),J;...
-     zeros(4,4),-inv(M)*C];
+%% Evolucion quat
+p=0;
+q=0;
+r=w;
 
-B = [zeros(4,4);
+S = [0, -p, -q, -r;...
+     p, 0, r, -q;...
+     q, -r, 0, p;...
+     r, q, -p, 0];
+ 
+
+%% Definicion del Sistemaa
+A = [zeros(3,7),J,zeros(3,1);...
+     zeros(4,3), (1/2)* S, zeros(4,4);...
+     zeros(4,7),-inv(M)*C];
+
+B = [zeros(7,4);
      inv(M)];
-    
-aux = [zeros(4,1);...
-       -inv(M)*G];
-   
-F = [zeros(4,1);...
-     inv(M)*extern];
+ 
 %% Definicion de kas funciones del sistema
 X = SX.sym('X',n_states,(N+1));
 U = SX.sym('U',n_control,N);
-P = SX.sym('P',n_states + N*(n_states) + 4);
+P = SX.sym('P',n_states + N*(n_states));
 %% vector que incluye el vector de estados y la referencia
-rhs=(A*states+B*controls+aux + F);
-f = Function('f',{states,controls,extern},{rhs}); 
+rhs=(A*states+B*controls);
+f = Function('f',{states,controls},{rhs}); 
 %% Vector que representa el problema de optimizacion
 obj = 0; % Funcion obejtivo la que vamos minimizar
 g = [];  % restricciones de estados del problema  de optimizacion
 
 st  = X(:,1); % initial state
 g = [g;st-P(1:n_states)]; % initial condition constraints
-
 
 he = [];
 u = [];
@@ -147,23 +145,32 @@ for k = 1:N
     st = X(:,k);  con = U(:,k);
 
     %% Funcion costo a minimizar z
-    hd = P(n_states*k+1:n_states*k+4);       
-    he = X(1:4,k)-hd;
-    fcost = he'*Q*he + con'*R*con;
+     
+    quat_d =  [0.5    ,    0 ,       0   ,0.5];
+    quat_d = P(n_states*k+1:n_states*k+3);
+    
+    q_real = X(4:7,k);
+    norm_q = norm(q_real);
+    q_inv = [q_real(1); -q_real(2:4)] / norm_q;
+    
+    q_error = quaternionMultiply(q_inv, quat_d);
+    
+    hd = P(n_states*k+1:n_states*k+3);
+    he = X(1:3,k)-hd;
+    
+    %fcost = he'*Q*he + con'*R*con;
+    fcost = he'*Q*he + con'*R*con + 1*(1-q_error(1))+ 1*(q_error(2:4)'*q_error(2:4));
+
     obj = obj+ fcost;
     
-%     he = [he;X(1:4,k)-hd];
-%     u = [u;con];
-    
-    %obj = obj+(st-P(7*k+1:7*k+4))'*Q*(st-P(7*k+1:7*k+4)) + con'*R*con;
-    fee = P((n_states)+N*(n_states)+1:(n_states)+N*(n_states)+4);
+
     %% Actualizacion del sistema usando Euler runge kutta
     st_next = X(:,k+1);
-    k1 = f(st, con, fee');   % new 
-    k2 = f(st + ts/2*k1, con, fee'); % new
-    k3 = f(st + ts/2*k2, con, fee'); % new
-    k4 = f(st + ts*k3, con, fee'); % new
-    st_next_RK4 = st +ts/6*(k1 +2*k2 +2*k3 +k4); % new 
+    k1 = f(st, con);   % new 
+    k2 = f(st + ts/2*k1, con); % new
+    k3 = f(st + ts/2*k2, con); % new
+    k4 = f(st + ts*k3, con); % new
+    st_next_RK4=st +ts/6*(k1 +2*k2 +2*k3 +k4); % new 
     
     %% Restricciones del sistema se =basan en el modelo del sistema
     g = [g;st_next-st_next_RK4]; 
@@ -221,6 +228,17 @@ args.ubx(7:n_states:n_states*(N+1),1) = inf;  %state z upper bound
 
 args.lbx(8:n_states:n_states*(N+1),1) = -inf; %state theta lower bound
 args.ubx(8:n_states:n_states*(N+1),1) = inf;  %state theta upper bound
+
+args.lbx(9:n_states:n_states*(N+1),1) = -inf; %state theta lower bound
+args.ubx(9:n_states:n_states*(N+1),1) = inf;  %state theta upper bound
+
+args.lbx(10:n_states:n_states*(N+1),1) = -inf; %state theta lower bound
+args.ubx(10:n_states:n_states*(N+1),1) = inf;  %state theta upper bound
+
+
+
+args.lbx(11:n_states:n_states*(N+1),1) = -inf; %state theta lower bound
+args.ubx(11:n_states:n_states*(N+1),1) = inf;  %state theta upper bound
 
 % args.lbx(9:n_states:n_states*(N+1),1) = 0; %state theta lower bound
 % args.ubx(9:n_states:n_states*(N+1),1) = 1;  %state theta upper bound
