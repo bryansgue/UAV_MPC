@@ -9,7 +9,7 @@ chi_uav = chi';
 f = 30 % Hz 
 ts = 1/f;
 to = 0;
-tf = 15;
+tf = 30;
 t = (to:ts:tf);
 
 %% Definicion del horizonte de prediccion
@@ -42,7 +42,7 @@ H = [h;quat;u];
 [hxd, hyd, hzd, hpsid, hxdp, hydp, hzdp, hpsidp] = Trayectorias(3,t,5);
 
 %% GENERALIZED DESIRED SIGNALS
- psi_d = hpsid;
+ psi_d = Angulo(hpsid);
 
 for k=1:length(t)
     quat_d(1:4,k) = eul2quat([psi_d(k), 0, 0], 'ZYX');
@@ -88,13 +88,15 @@ for k=1:length(t)-N
     h_N(:,1:4,k) = x_opt(:,1:4);
 
     %% DYNAMIC ESTIMATION
-      
+    
+    
     x(:,k+1) = UAV_Dinamica_quat_RK4(chi_uav,x(:,k),u_ref(:,k),L,ts);
     
     h(:,k+1) = x(1:3,k+1);
-    quat(:,k+1) = x(4:7,k+1);
+    quat(:,k+1) = x(4:7,k+1);  
     u(:,k+1) = x(8:11,k+1);
     
+   
     % Convertir el cuaternión a ángulos de Euler
     euler(:,k+1) = quat2eul((quat(:,k+1))', 'ZYX');  % Los ángulos de Euler se obtienen en el orden ZYX
 
@@ -104,7 +106,7 @@ for k=1:length(t)-N
     
     v_N = [u_opt(2:end,:);u_opt(end,:)];
     x_N = [x_opt(2:end,:);x_opt(end,:)];
-    
+    k
 end
 toc
 %%
@@ -200,7 +202,15 @@ legend("un_c","un","un_{ref}")
 ylabel('z [m/ms]'); xlabel('s [ms]');
 title('$\textrm{Evolution of un Errors}$','Interpreter','latex','FontSize',9);
 
+%%
+close all
+figure(10)
+plot(quat_d(1,1:end))
+hold on
+plot(quat(1,1:end))
+legend("qw_d","un","qw")
 
+%%
 
 % figure
 % set(gcf, 'PaperUnits', 'inches');

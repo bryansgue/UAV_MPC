@@ -69,6 +69,17 @@ p=0;
 q=0;
 r=w;
 
+%% Split que quaternions
+qw = quat(1);
+qx = quat(2);
+qy = quat(3);
+qz = quat(4);
+
+K_quat = 2;
+quat_error = 1 - (qw^2 + qx^2 + qy^2 + qz^2);
+
+%% Create Skew symetric matrix
+
 S = [0, -p, -q, -r;...
      p, 0, r, -q;...
      q, -r, 0, p;...

@@ -150,6 +150,7 @@ for k = 1:N
     quat_d = P(n_states*k+4:n_states*k+7);
     
     q_real = X(4:7,k);
+    
     norm_q = norm(q_real);
     q_inv = [q_real(1); -q_real(2:4)] / norm_q;
     
@@ -162,7 +163,7 @@ for k = 1:N
     
     %fcost = he'*Q*he + con'*R*con;
      fcost = he'*Q*he + con'*R*con + 1*(1-q_error(1))+ 1*(q_error(2:4)'*q_error(2:4));
-%      fcost = he' * Q * he + con' * R * con - norm_qe;
+%      fcost = he' * Q * he + con' * R * con + (1-norm_qe)^2;
     
     obj = obj+ fcost;
     
