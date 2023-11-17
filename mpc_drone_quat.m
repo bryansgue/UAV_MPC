@@ -156,14 +156,13 @@ for k = 1:N
     
     q_error = quaternionMultiply(q_inv, quat_d);
     
-    norm_qe = norm(q_error);
     
     hd = P(n_states*k+1:n_states*k+3);
     he = X(1:3,k)-hd;
     
     %fcost = he'*Q*he + con'*R*con;
-     fcost = he'*Q*he + con'*R*con + 1*(1-q_error(1))+ 1*(q_error(2:4)'*q_error(2:4));
-%      fcost = he' * Q * he + con' * R * con + (1-norm_qe)^2;
+    fcost = he'*Q*he + con'*R*con + 1*(1-q_error(1))+ 1*(q_error(2:4)'*q_error(2:4));
+
     
     obj = obj+ fcost;
     

@@ -89,13 +89,14 @@ for k=1:length(t)-N
 
     %% DYNAMIC ESTIMATION
     
-    
+    %u_ref(:,k) = [0.0;0.0;0.0;0.0];
     x(:,k+1) = UAV_Dinamica_quat_RK4(chi_uav,x(:,k),u_ref(:,k),L,ts);
     
     h(:,k+1) = x(1:3,k+1);
     quat(:,k+1) = x(4:7,k+1);  
     u(:,k+1) = x(8:11,k+1);
     
+    disp(h(:,k+1));
    
     % Convertir el cuaternión a ángulos de Euler
     euler(:,k+1) = quat2eul((quat(:,k+1))', 'ZYX');  % Los ángulos de Euler se obtienen en el orden ZYX
@@ -106,7 +107,7 @@ for k=1:length(t)-N
     
     v_N = [u_opt(2:end,:);u_opt(end,:)];
     x_N = [x_opt(2:end,:);x_opt(end,:)];
-    k
+   
 end
 toc
 %%
