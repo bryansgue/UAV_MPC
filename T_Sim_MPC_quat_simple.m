@@ -45,7 +45,7 @@ H = [h;quat;u];
  psi_d = Angulo(hpsid);
 
 for k=1:length(t)
-    quat_d(1:4,k) = eul2quat([psi_d(k), 0, 0], 'ZYX');
+    quat_d(1:4,k) = eul2quat([psi_d(k), 0, 0], 'ZYX')
 end
     
 
