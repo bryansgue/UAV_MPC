@@ -40,46 +40,41 @@ q_p = [x_p;y_p;z_p;phi_p;theta_p;psi_p];
 zp_ref = SX.sym('F');
 phi_ref = SX.sym('ux');
 theta_ref = SX.sym('uy');
-psi_ref = SX.sym('uz');
+psip_ref = SX.sym('uz');
 
 %% Defincion de cuantas acciones del control tiene el sistema
-controls = [zp_ref;phi_ref;theta_ref;psi_ref]; 
+controls = [zp_ref;phi_ref;theta_ref;psip_ref]; 
 n_control = length(controls);
 
 %% PARA R
 g = 9.81;
 m = chi(1);
 
-R = Rot_zyx(q(4:6));
-
 Mbar = M_matrix_bar(chi,q);
 Cbar = C_matrix_bar(chi,q,q_p);
 Gbar = G_matrix_bar(chi,q);
 
+ B = [0;0;m*g;0;0;0];
+
+R = Rot_zyx(q(4:6));
+% 
 S = S_fuction(chi);
 Q = Q_fuction(chi);
 E = E_fuction(chi);
 T = T_fuction(chi);
-B = [0;0;m*g;0;0;0];
 
-R_T = [R*T(1:3,1:3) T(1:3,4:6);T(4:6,1:3) T(4:6,4:6)];
+R_bar = [R zeros(3,3);
+        zeros(3,3) eye(3,3)];
+
 
 Aux = (S*[0;0;controls]-Q*q-E*q_p+B);
-Aux1 = R*Aux(1:3,1);
-Aux2 = Aux(4:6,1);
 
-Input_model = [Aux1;Aux2];
+q_pp = pinv(Mbar+R_bar*T)*(R_bar*Aux-Cbar*q_p-Gbar);
 
-%inv_uax = inv_M_RT(chi,q);
-
-q_pp = inv(Mbar+R_T)*(Input_model-Cbar*q_p-Gbar);
-%q_pp = inv_uax*(Input_model-Cbar*q_p-Gbar);
-
-s_p = [q_p;
-       q_pp];
+xp = [q_p; q_pp];
 
 %% Definicion de kas funciones del sistema
-f = Function('f',{states,controls},{s_p}); 
+f = Function('f',{states,controls},{xp}); 
 
 X = SX.sym('X',n_states,(N+1));
 U = SX.sym('U',n_control,N);

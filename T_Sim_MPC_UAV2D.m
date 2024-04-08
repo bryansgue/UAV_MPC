@@ -21,9 +21,9 @@ Ixx = 0.02;
 L =[g;m;Ixx];
 
 % Definicion de los limites de las acciondes de control
-val = 20;
+val = 5;
 T_max = 50*m*g;
-T_min = -T_max;
+T_min = -T_max*0;
 bounded = [T_max; T_min; val; -val];
 
 % Seccion para cargar los parametros dinamicos del sistema
@@ -32,12 +32,12 @@ load("chi_values.mat");
 
 % Deficion de la matriz de la matriz de control
 Q = eye(3);
-Q(1,1) = 1;
-Q(2,2) = 1;
-Q(3,3) = 100;
+Q(1,1) = 2;
+Q(2,2) = 2;
+Q(3,3) = 1;
 
 % Definicion de la matriz de las acciones de control
-R = 0*0.0000001*eye(2);
+R = 0.001*eye(2);
 
 % Definicion de los estados iniciales del sistema
 x = 0;
@@ -68,9 +68,9 @@ x_N = H0;
 mul = 5;
 [hxd, hyd, hzd, psid, hxdp, hydp, hzdp, psidp] = Trayectorias(3,t,mul);
 %% GENERALIZED DESIRED SIGNALS
-psid = (-45*(pi/180))*ones(1,length(t));
-%Q(3,3) = 0;
-hd = [hyd; hzd; psid;hydp;hzdp;psidp];
+%psid = 1*(45*(pi/180))*ones(1,length(t));
+Q(3,3) = 0.5;
+hd = [hyd; hzd; 0* psid;hydp;hzdp;psidp];
 
 %% Velocidad inicial real del UAV
 
@@ -130,6 +130,11 @@ x1.Style = 'infinite';
 view(90,0);
 
     paso = 1;
+    
+    
+% Nombre del archivo GIF
+gifFileName = 'animacion2.gif';
+    
 for k = 1:paso:length(t)-N
     drawnow
     delete(G2);
@@ -142,6 +147,9 @@ for k = 1:paso:length(t)-N
 %    G4 = plot3(0,h(1:k),h(2:k),'-.','Color',[56,171,217]/255,'linewidth',1.5);
     G5 = plot3(0*h_N(1:N,1,k),h_N(1:N,1,k),h_N(1:N,2,k),'Color',[100,100,100]/255,'linewidth',0.1);
 
+    % Capturar el cuadro actual y guardar en el archivo GIF
+    frame = getframe(gcf);
+    guardarGIF('MPC_UAV_2D.gif', frame, 0, k == 1);
     
     pause(0)
 end

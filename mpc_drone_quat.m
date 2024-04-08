@@ -123,6 +123,10 @@ A = [zeros(3,7),J,zeros(3,1);...
 B = [zeros(7,4);
      inv(M)];
  
+disp(size(A))
+ 
+disp(size(B))
+ 
 %% Definicion de kas funciones del sistema
 X = SX.sym('X',n_states,(N+1));
 U = SX.sym('U',n_control,N);

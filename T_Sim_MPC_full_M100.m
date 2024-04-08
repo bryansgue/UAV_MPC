@@ -17,7 +17,7 @@ N = 20;
 % Definicion de las constantes del sistema
 g = 9.81;
 
-load("values_final.mat");
+load("chi_uav_compact_full_model.mat");
 chi = values_final;
 
 zp_ref_max = 3;
@@ -174,7 +174,7 @@ G5 = plot3(0,h(1),h(1),'-','Color',[56,171,217]/255,'linewidth',1.5);hold on,gri
 %plot3(hxd(ubicacion),hyd(ubicacion),hzd(ubicacion),'*r','linewidth',1.5);
 view(-45,15);
 
-paso = 1;
+paso = 10;
 for k = 1:paso:length(t)-N
     drawnow
     delete(G2);

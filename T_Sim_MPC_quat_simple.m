@@ -45,7 +45,7 @@ H = [h;quat;u];
  psi_d = Angulo(hpsid);
 
 for k=1:length(t)
-    quat_d(1:4,k) = eul2quat([psi_d(k), 0, 0], 'ZYX')
+    quat_d(1:4,k) = eul2quat([psi_d(k), 0, 0], 'ZYX');
 end
     
 
@@ -75,6 +75,7 @@ x_N = H0;
 % Chi estimado iniciales
 chi_estimados(:,1) = chi';
 tic
+
 for k=1:length(t)-N
 
     %% Generacion del; vector de error del sistema
@@ -96,7 +97,7 @@ for k=1:length(t)-N
     quat(:,k+1) = x(4:7,k+1);  
     u(:,k+1) = x(8:11,k+1);
     
-    disp(h(:,k+1));
+   
    
     % Convertir el cuaternión a ángulos de Euler
     euler(:,k+1) = quat2eul((quat(:,k+1))', 'ZYX');  % Los ángulos de Euler se obtienen en el orden ZYX

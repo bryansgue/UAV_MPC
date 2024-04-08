@@ -116,8 +116,8 @@ args.ubx(1:n_states:n_states*(N+1),1) = inf;  %state x upper bound
 args.lbx(2:n_states:n_states*(N+1),1) = -inf; %state y lower bound
 args.ubx(2:n_states:n_states*(N+1),1) = inf;  %state y upper bound
 
-args.lbx(3:n_states:n_states*(N+1),1) = -inf; %state z lower bound
-args.ubx(3:n_states:n_states*(N+1),1) = inf;  %state z upper bound
+args.lbx(3:n_states:n_states*(N+1),1) = -pi/4; %state z lower bound
+args.ubx(3:n_states:n_states*(N+1),1) = pi + pi/4;  %state z upper bound
 
 args.lbx(4:n_states:n_states*(N+1),1) = -inf; %state theta lower bound
 args.ubx(4:n_states:n_states*(N+1),1) = inf;  %state theta upper bound
